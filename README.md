@@ -31,4 +31,5 @@ Una vez desplegada, ve a la pestaña ⚙️ Config:
 - **Worker URL**: tu Cloudflare Worker (`https://xxx.workers.dev`)
 - **API-Football Key**: obtén en dashboard.api-football.com
 
+
 La configuración se guarda en tu navegador automáticamente.
