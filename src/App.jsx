@@ -98,7 +98,7 @@ REGLAS: odds minimo 1.4. risk: BAJO/MEDIO/ALTO. win: A, B o draw. pie suma 100.`
       "x-claude-key": claudeKey,
     },
     body: JSON.stringify({
-      model: "claude-sonnet-4-20250514",
+      model: "claude-sonnet-4-5",
       max_tokens: 2000,
       system: sys,
       messages: [{ role: "user", content: prompt }]
@@ -542,6 +542,6 @@ export default function App() {
           <div style={{ textAlign:"center", fontSize:12, color:"#9ca3af", marginTop:16 }}>Las apuestas son sugerencias estadísticas. Juega responsablemente.</div>
         </div>
       )}
-    </div
+    </div>
   );
 }
