@@ -85,11 +85,9 @@ function safeJSON(raw) {
 
 async function callClaude(prompt, workerUrl, claudeKey) {
   const base = workerUrl.replace(/\/$/, "");
-  const sys = `Eres analista profesional de apuestas deportivas de élite. Se te dan datos reales del partido. Responde SOLO JSON puro, sin texto ni markdown. Empieza con {
-
-{"bet":"descripcion apuesta","odds":1.65,"confidence":78,"risk":"BAJO","verdict":"3 oraciones ejecutivas basadas en los datos","keyPoints":["p1","p2","p3","p4"],"items":[{"factor":"Forma reciente","A":"dato real","B":"dato real","win":"A"},{"factor":"H2H (últimos 5)","A":"dato","B":"dato","win":"A"},{"factor":"Lesionados","A":"dato","B":"dato","win":"B"},{"factor":"Goles marcados","A":"dato","B":"dato","win":"A"},{"factor":"Goles recibidos","A":"dato","B":"dato","win":"B"},{"factor":"Condición local/visitante","A":"dato","B":"dato","win":"A"},{"factor":"Motivación","A":"dato","B":"dato","win":"A"},{"factor":"Tendencia de juego","A":"dato","B":"dato","win":"B"}],"barA":[8,7,6,5],"barB":[5,4,7,6],"barLabels":["Forma","Ataque","Defensa","Local"],"pie":[52,20,28],"radarA":[8,6,7,8,6],"radarB":[5,7,5,4,7],"radarLabels":["Ataque","Defensa","Forma","Local","Plantilla"],"telegramPost":"post telegram con emojis formato vertical mobile","whatsappPost":"post whatsapp con emojis formato vertical mobile"}
-
-REGLAS: odds minimo 1.4. risk: BAJO/MEDIO/ALTO. win: A, B o draw. pie suma 100.`;
+  const sys = `Eres analista de apuestas deportivas. Responde UNICAMENTE con JSON. Sin texto antes ni despues. Sin markdown. Sin backticks. Empieza con { y termina con }.
+Estructura: {"bet":"string","odds":1.65,"confidence":78,"risk":"BAJO","verdict":"string","keyPoints":["a","b","c","d"],"items":[{"factor":"Forma reciente","A":"string","B":"string","win":"A"},{"factor":"H2H","A":"string","B":"string","win":"B"},{"factor":"Lesionados","A":"string","B":"string","win":"A"},{"factor":"Goles marcados","A":"string","B":"string","win":"A"},{"factor":"Goles recibidos","A":"string","B":"string","win":"B"},{"factor":"Local vs Visitante","A":"string","B":"string","win":"A"},{"factor":"Motivacion","A":"string","B":"string","win":"A"},{"factor":"Tendencia","A":"string","B":"string","win":"B"}],"barA":[8,7,6,5],"barB":[5,4,7,6],"barLabels":["Forma","Ataque","Defensa","Local"],"pie":[52,20,28],"radarA":[8,6,7,8,6],"radarB":[5,7,5,4,7],"radarLabels":["Ataque","Defensa","Forma","Local","Plantilla"],"telegramPost":"string","whatsappPost":"string"}
+REGLAS: odds minimo 1.4. risk solo BAJO MEDIO o ALTO. win solo A B o draw. pie suma 100. SOLO JSON puro.`;
 
   const res = await fetch(`${base}/claude`, {
     method: "POST",
