@@ -6,9 +6,7 @@ import {
 } from "recharts";
 
 const PIE_COLORS = ["#1D9E75", "#888780", "#378ADD"];
-
-// ─── Configuración guardada en localStorage ───────────────────────────────────
-const STORAGE_KEY = "betiq_config";
+const STORAGE_KEY = "betiq_config_v2";
 
 function loadConfig() {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}"); } catch { return {}; }
@@ -17,7 +15,7 @@ function saveConfig(cfg) {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); } catch {}
 }
 
-// ─── API-Football via Cloudflare Worker ──────────────────────────────────────
+// ─── API-Football via Worker ──────────────────────────────────────────────────
 
 async function proxyFetch(workerUrl, endpoint, apiKey) {
   const base = workerUrl.replace(/\/$/, "");
@@ -26,9 +24,7 @@ async function proxyFetch(workerUrl, endpoint, apiKey) {
   });
   if (!res.ok) throw new Error(`Proxy error ${res.status}`);
   const data = await res.json();
-  if (data.errors && Object.keys(data.errors).length > 0) {
-    throw new Error(JSON.stringify(data.errors));
-  }
+  if (data.errors && Object.keys(data.errors).length > 0) throw new Error(JSON.stringify(data.errors));
   return data.response || [];
 }
 
@@ -43,8 +39,7 @@ async function searchTeam(name, workerUrl, apiKey) {
   if (n.includes("boca")) variants.push("Boca Juniors");
   if (n.includes("river")) variants.push("River Plate");
   if (n.includes("flamengo")) variants.push("Flamengo");
-  if (n.includes("barcelona")) variants.push("FC Barcelona", "Barcelona SC");
-
+  if (n.includes("barcelona") && !n.includes("sc")) variants.push("FC Barcelona");
   for (const v of variants) {
     try {
       const r = await proxyFetch(workerUrl, `/teams?search=${encodeURIComponent(v)}`, apiKey);
@@ -57,14 +52,11 @@ async function searchTeam(name, workerUrl, apiKey) {
 async function getLastFixtures(teamId, workerUrl, apiKey) {
   return proxyFetch(workerUrl, `/fixtures?team=${teamId}&last=5`, apiKey);
 }
-
 async function getH2H(idA, idB, workerUrl, apiKey) {
   return proxyFetch(workerUrl, `/fixtures/headtohead?h2h=${idA}-${idB}&last=5`, apiKey);
 }
-
 async function getInjuries(teamId, workerUrl, apiKey) {
-  try { return proxyFetch(workerUrl, `/injuries?team=${teamId}&season=2025`, apiKey); }
-  catch { return []; }
+  try { return proxyFetch(workerUrl, `/injuries?team=${teamId}&season=2025`, apiKey); } catch { return []; }
 }
 
 function parseForm(fixtures, teamId) {
@@ -75,12 +67,11 @@ function parseForm(fixtures, teamId) {
     return gA > gH ? "W" : gA < gH ? "L" : "D";
   }).join("");
 }
-
 function formScore(s) {
   return [...(s || "")].reduce((a, c) => a + (c === "W" ? 3 : c === "D" ? 1 : 0), 0);
 }
 
-// ─── Claude AI ────────────────────────────────────────────────────────────────
+// ─── Claude via Worker ────────────────────────────────────────────────────────
 
 function safeJSON(raw) {
   if (!raw) return null;
@@ -92,19 +83,20 @@ function safeJSON(raw) {
   return null;
 }
 
-async function callClaude(prompt, claudeKey) {
-  const headers = { "Content-Type": "application/json" };
-  if (claudeKey) headers["x-api-key"] = claudeKey;
-
+async function callClaude(prompt, workerUrl, claudeKey) {
+  const base = workerUrl.replace(/\/$/, "");
   const sys = `Eres analista profesional de apuestas deportivas de élite. Se te dan datos reales del partido. Responde SOLO JSON puro, sin texto ni markdown. Empieza con {
 
 {"bet":"descripcion apuesta","odds":1.65,"confidence":78,"risk":"BAJO","verdict":"3 oraciones ejecutivas basadas en los datos","keyPoints":["p1","p2","p3","p4"],"items":[{"factor":"Forma reciente","A":"dato real","B":"dato real","win":"A"},{"factor":"H2H (últimos 5)","A":"dato","B":"dato","win":"A"},{"factor":"Lesionados","A":"dato","B":"dato","win":"B"},{"factor":"Goles marcados","A":"dato","B":"dato","win":"A"},{"factor":"Goles recibidos","A":"dato","B":"dato","win":"B"},{"factor":"Condición local/visitante","A":"dato","B":"dato","win":"A"},{"factor":"Motivación","A":"dato","B":"dato","win":"A"},{"factor":"Tendencia de juego","A":"dato","B":"dato","win":"B"}],"barA":[8,7,6,5],"barB":[5,4,7,6],"barLabels":["Forma","Ataque","Defensa","Local"],"pie":[52,20,28],"radarA":[8,6,7,8,6],"radarB":[5,7,5,4,7],"radarLabels":["Ataque","Defensa","Forma","Local","Plantilla"],"telegramPost":"post telegram con emojis formato vertical mobile","whatsappPost":"post whatsapp con emojis formato vertical mobile"}
 
-REGLAS: odds ≥ 1.4. risk: BAJO/MEDIO/ALTO. win: A, B o draw. pie suma 100.`;
+REGLAS: odds minimo 1.4. risk: BAJO/MEDIO/ALTO. win: A, B o draw. pie suma 100.`;
 
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
+  const res = await fetch(`${base}/claude`, {
     method: "POST",
-    headers,
+    headers: {
+      "Content-Type": "application/json",
+      "x-claude-key": claudeKey,
+    },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
       max_tokens: 2000,
@@ -112,9 +104,10 @@ REGLAS: odds ≥ 1.4. risk: BAJO/MEDIO/ALTO. win: A, B o draw. pie suma 100.`;
       messages: [{ role: "user", content: prompt }]
     })
   });
-  if (!res.ok) throw new Error(`Claude HTTP ${res.status}`);
-  const d = await res.json();
-  return d.content?.[0]?.text || "";
+  if (!res.ok) throw new Error(`Claude proxy error ${res.status}`);
+  const data = await res.json();
+  if (data.error) throw new Error(data.error);
+  return data.content?.[0]?.text || "";
 }
 
 // ─── UI Components ────────────────────────────────────────────────────────────
@@ -161,12 +154,7 @@ function CompTable({ d }) {
         {[{ name: d.teamA, score: sA, side: "left" }, null, { name: d.teamB, score: sB, side: "right" }].map((t, i) => {
           if (!t) return <div key="m" style={{ padding: "12px 8px", textAlign: "center", borderLeft: "1px solid #e5e7eb", borderRight: "1px solid #e5e7eb", display: "flex", alignItems: "center", justifyContent: "center" }}><span style={{ fontSize: 10, color: "#9ca3af", textTransform: "uppercase", letterSpacing: ".06em" }}>Factor</span></div>;
           const w = i === 0 ? sA >= sB : sB >= sA;
-          return (
-            <div key={i} style={{ padding: "12px 14px", textAlign: t.side }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: w ? "#1D9E75" : "#6b7280" }}>{t.name}</div>
-              <div style={{ fontSize: 24, fontWeight: 700, color: w ? "#1D9E75" : "#6b7280" }}>{t.score}<span style={{ fontSize: 11, fontWeight: 400 }}> pts</span></div>
-            </div>
-          );
+          return <div key={i} style={{ padding: "12px 14px", textAlign: t.side }}><div style={{ fontSize: 13, fontWeight: 700, color: w ? "#1D9E75" : "#6b7280" }}>{t.name}</div><div style={{ fontSize: 24, fontWeight: 700, color: w ? "#1D9E75" : "#6b7280" }}>{t.score}<span style={{ fontSize: 11, fontWeight: 400 }}> pts</span></div></div>;
         })}
       </div>
       {items.map((item, idx) => (
@@ -285,22 +273,21 @@ export default function App() {
   const [err, setErr] = useState("");
   const [workerOk, setWorkerOk] = useState(null);
 
-  // Load saved config on mount
   useEffect(() => {
     const saved = loadConfig();
-    if (saved.workerUrl || saved.apiKey || saved.claudeKey) setCfg(saved);
+    if (Object.keys(saved).length) setCfg(prev => ({ ...prev, ...saved }));
   }, []);
 
   const saveCfg = (newCfg) => { setCfg(newCfg); saveConfig(newCfg); };
   const setF = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
-  const hasProxy = cfg.workerUrl.trim() && cfg.apiKey.trim();
+  const hasProxy = cfg.workerUrl.trim() && cfg.claudeKey.trim();
+  const hasRealData = hasProxy && cfg.apiKey.trim();
   const riskColor = { BAJO: "#1D9E75", MEDIO: "#BA7517", ALTO: "#E24B4A" };
 
   const testWorker = async () => {
     setWorkerOk(null);
     try {
-      const url = cfg.workerUrl.replace(/\/$/, "");
-      const res = await fetch(`${url}/health`);
+      const res = await fetch(`${cfg.workerUrl.replace(/\/$/, "")}/health`);
       const d = await res.json();
       setWorkerOk(d.status === "ok");
     } catch { setWorkerOk(false); }
@@ -308,11 +295,13 @@ export default function App() {
 
   const analyze = async () => {
     if (!form.a || !form.b) { setErr("Ingresa los dos equipos."); return; }
+    if (!cfg.workerUrl || !cfg.claudeKey) { setErr("Configura el Worker y la Claude API Key en ⚙️ Config."); return; }
     setErr(""); setData(null); setLoading(true);
     let realStats = null;
 
     try {
-      if (hasProxy) {
+      // ── Fetch real data if API-Football key available ──
+      if (hasRealData) {
         try {
           setStep("🔍 Buscando equipos en la base de datos...");
           const [tA, tB] = await Promise.all([
@@ -330,19 +319,19 @@ export default function App() {
               getInjuries(idB, cfg.workerUrl, cfg.apiKey),
             ]);
             const formA = parseForm(fA, idA), formB = parseForm(fB, idB);
-            const goalsA = fA.reduce((s, f) => s + ((f.teams.home.id===idA?f.goals.home:f.goals.away)||0), 0);
-            const goalsB = fB.reduce((s, f) => s + ((f.teams.home.id===idB?f.goals.home:f.goals.away)||0), 0);
-            const concA  = fA.reduce((s, f) => s + ((f.teams.home.id===idA?f.goals.away:f.goals.home)||0), 0);
-            const concB  = fB.reduce((s, f) => s + ((f.teams.home.id===idB?f.goals.away:f.goals.home)||0), 0);
-            const h2hWinsA = h2h.filter(f=>f.teams.home.id===idA?(f.goals.home||0)>(f.goals.away||0):(f.goals.away||0)>(f.goals.home||0)).length;
-            const h2hWinsB = h2h.filter(f=>f.teams.home.id===idB?(f.goals.home||0)>(f.goals.away||0):(f.goals.away||0)>(f.goals.home||0)).length;
-            const injNamesA = injA.slice(0,4).map(p=>p.player?.name||"?").join(", ")||"Ninguno";
-            const injNamesB = injB.slice(0,4).map(p=>p.player?.name||"?").join(", ")||"Ninguno";
+            const goalsA = fA.reduce((s, f) => s + ((f.teams.home.id === idA ? f.goals.home : f.goals.away) || 0), 0);
+            const goalsB = fB.reduce((s, f) => s + ((f.teams.home.id === idB ? f.goals.home : f.goals.away) || 0), 0);
+            const concA  = fA.reduce((s, f) => s + ((f.teams.home.id === idA ? f.goals.away : f.goals.home) || 0), 0);
+            const concB  = fB.reduce((s, f) => s + ((f.teams.home.id === idB ? f.goals.away : f.goals.home) || 0), 0);
+            const h2hWinsA = h2h.filter(f => f.teams.home.id === idA ? (f.goals.home||0) > (f.goals.away||0) : (f.goals.away||0) > (f.goals.home||0)).length;
+            const h2hWinsB = h2h.filter(f => f.teams.home.id === idB ? (f.goals.home||0) > (f.goals.away||0) : (f.goals.away||0) > (f.goals.home||0)).length;
+            const injNamesA = injA.slice(0,4).map(p=>p.player?.name||"?").join(", ") || "Ninguno reportado";
+            const injNamesB = injB.slice(0,4).map(p=>p.player?.name||"?").join(", ") || "Ninguno reportado";
             const resultsA = fA.slice(0,5).map(f=>{const h=f.teams.home.id===idA;return `${h?f.teams.away.name:f.teams.home.name} ${h?f.goals.home:f.goals.away}-${h?f.goals.away:f.goals.home}`;}).join(" | ");
             const resultsB = fB.slice(0,5).map(f=>{const h=f.teams.home.id===idB;return `${h?f.teams.away.name:f.teams.home.name} ${h?f.goals.home:f.goals.away}-${h?f.goals.away:f.goals.home}`;}).join(" | ");
             realStats = { teamAName:tA.team.name, teamBName:tB.team.name, formA, formB, goalsA, goalsB, concA, concB, h2hWinsA, h2hWinsB, h2hTotal:h2h.length, injA:injNamesA, injB:injNamesB, injCountA:injA.length, injCountB:injB.length, resultsA, resultsB, scoreA:formScore(formA), scoreB:formScore(formB) };
           }
-        } catch (e) { console.warn("API-Football error:", e.message); }
+        } catch (e) { console.warn("API-Football:", e.message); }
       }
 
       setStep("🧠 Generando análisis con IA...");
@@ -350,7 +339,7 @@ export default function App() {
         ? `Analiza con estos DATOS REALES de API-Football:\n\nPARTIDO: ${realStats.teamAName} (LOCAL) vs ${realStats.teamBName} (VISITANTE)\nCompetición: ${form.comp||"no especificada"} | Fecha: ${form.date||"próxima"}\n\n📊 DATOS REALES:\n• Forma últimos 5 → ${realStats.teamAName}: ${realStats.formA} (${realStats.scoreA}pts) | ${realStats.teamBName}: ${realStats.formB} (${realStats.scoreB}pts)\n• Goles marcados (últ.5) → ${realStats.teamAName}: ${realStats.goalsA} | ${realStats.teamBName}: ${realStats.goalsB}\n• Goles recibidos (últ.5) → ${realStats.teamAName}: ${realStats.concA} | ${realStats.teamBName}: ${realStats.concB}\n• H2H (${realStats.h2hTotal} partidos) → ${realStats.teamAName} ganó ${realStats.h2hWinsA} | ${realStats.teamBName} ganó ${realStats.h2hWinsB}\n• Lesionados ${realStats.teamAName} (${realStats.injCountA}): ${realStats.injA}\n• Lesionados ${realStats.teamBName} (${realStats.injCountB}): ${realStats.injB}\n• Últimos resultados ${realStats.teamAName}: ${realStats.resultsA}\n• Últimos resultados ${realStats.teamBName}: ${realStats.resultsB}\n• Contexto extra: ${form.ctx||"ninguno"}\n\nDame la mejor apuesta con cuota mínima 1.4.`
         : `Partido: ${form.a} (local) vs ${form.b} (visitante). Competición: ${form.comp||"no especificada"}. Fecha: ${form.date||"próxima"}. Contexto: ${form.ctx||"ninguno"}. Mejor apuesta cuota ≥ 1.4.`;
 
-      const raw = await callClaude(prompt, cfg.claudeKey);
+      const raw = await callClaude(prompt, cfg.workerUrl, cfg.claudeKey);
       const parsed = safeJSON(raw);
       if (!parsed) { setErr("La IA no devolvió respuesta válida. Intenta de nuevo."); return; }
       parsed.teamA = realStats?.teamAName || form.a;
@@ -372,7 +361,7 @@ export default function App() {
     <div style={{ fontFamily: "system-ui,sans-serif", maxWidth: 740, margin: "0 auto", padding: "16px 12px", minHeight: "100vh", background: "#f9fafb" }}>
 
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 12, paddingBottom: 16, borderBottom: "1px solid #e5e7eb", marginBottom: 18, flexWrap: "wrap", background: "#fff", padding: "16px 20px", borderRadius: 12, marginBottom: 16, boxShadow: "0 1px 3px #0001" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, background: "#fff", padding: "14px 20px", borderRadius: 12, marginBottom: 16, boxShadow: "0 1px 3px #0001", flexWrap: "wrap" }}>
         <div style={{ width: 40, height: 40, background: "#1D9E75", borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22 }}>⚡</div>
         <div>
           <div style={{ fontWeight: 700, fontSize: 18 }}>BETIQ PRO</div>
@@ -390,57 +379,45 @@ export default function App() {
       {tab === "setup" && (
         <div>
           <div style={{ ...card, borderColor: "#bae6fd", background: "#f0f9ff" }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>🔑 Claude API Key</div>
-            <div style={{ fontSize: 13, color: "#374151", marginBottom: 10 }}>
-              Obtén tu key en <strong>console.anthropic.com</strong> → API Keys → Create Key
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>☁️ URL del Cloudflare Worker <span style={{ color: "#b91c1c" }}>*requerido</span></div>
+            <div style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>El Worker actúa de puente para Claude y API-Football.</div>
+            <input style={inp} placeholder="https://cold-bar-717e.adserobles.workers.dev" value={cfg.workerUrl} onChange={e => saveCfg({ ...cfg, workerUrl: e.target.value })} />
+            <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10, flexWrap: "wrap" }}>
+              <button onClick={testWorker} disabled={!cfg.workerUrl} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #1D9E75", background: "#f0fdf4", color: "#1D9E75", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>🔌 Probar conexión</button>
+              {workerOk === true  && <span style={{ color: "#1D9E75", fontWeight: 600 }}>✅ Conectado correctamente</span>}
+              {workerOk === false && <span style={{ color: "#b91c1c", fontWeight: 600 }}>❌ No se conectó — revisa la URL</span>}
             </div>
+          </div>
+
+          <div style={{ ...card, borderColor: "#d8b4fe", background: "#faf5ff" }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>🤖 Claude API Key <span style={{ color: "#b91c1c" }}>*requerido</span></div>
+            <div style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Obtén en <strong>console.anthropic.com</strong> → API Keys → Create Key</div>
             <input style={{ ...inp, fontFamily: "monospace", fontSize: 12 }} type="password" placeholder="sk-ant-api03-..." value={cfg.claudeKey} onChange={e => saveCfg({ ...cfg, claudeKey: e.target.value })} />
           </div>
 
           <div style={{ ...card, borderColor: "#d1fae5", background: "#f0fdf4" }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>☁️ Cloudflare Worker (datos reales)</div>
-            <div style={{ fontSize: 13, color: "#374151", marginBottom: 10 }}>
-              URL de tu Worker desplegado en Cloudflare
-            </div>
-            <input style={inp} placeholder="https://betiq-proxy.TU-USUARIO.workers.dev" value={cfg.workerUrl} onChange={e => saveCfg({ ...cfg, workerUrl: e.target.value })} />
-          </div>
-
-          <div style={card}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 8 }}>📡 API Key de API-Football</div>
-            <div style={{ fontSize: 13, color: "#374151", marginBottom: 10 }}>
-              Obtenla en <strong>dashboard.api-football.com</strong> → Account → My Access
-            </div>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6 }}>📡 API Key de API-Football <span style={{ color: "#6b7280", fontWeight: 400 }}>(opcional — para datos reales)</span></div>
+            <div style={{ fontSize: 13, color: "#374151", marginBottom: 8 }}>Obtén en <strong>dashboard.api-football.com</strong> → Account → My Access. Plan gratis: 100 req/día.</div>
             <input style={{ ...inp, fontFamily: "monospace", fontSize: 12 }} type="password" placeholder="Tu API key alfanumérica..." value={cfg.apiKey} onChange={e => saveCfg({ ...cfg, apiKey: e.target.value })} />
           </div>
 
-          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 14 }}>
-            <button onClick={testWorker} disabled={!cfg.workerUrl} style={{ padding: "10px 20px", borderRadius: 8, border: "1px solid #1D9E75", background: "#f0fdf4", color: "#1D9E75", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
-              🔌 Probar conexión Worker
-            </button>
-            {workerOk === true  && <span style={{ color: "#1D9E75", fontWeight: 600 }}>✅ Worker conectado</span>}
-            {workerOk === false && <span style={{ color: "#b91c1c", fontWeight: 600 }}>❌ No se conectó — revisa la URL</span>}
-          </div>
-
-          {workerOk === true && (
-            <button onClick={() => setTab("analyze")} style={{ width: "100%", padding: 12, borderRadius: 8, border: "none", background: "#1D9E75", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
-              ⚡ Ir a analizar partidos
-            </button>
-          )}
-
-          <div style={{ background: "#f9fafb", border: "1px solid #e5e7eb", borderRadius: 8, padding: "12px 14px", fontSize: 12, color: "#6b7280", marginTop: 8 }}>
-            💾 La configuración se guarda automáticamente en tu navegador.
-          </div>
+          <button onClick={() => setTab("analyze")} style={{ width: "100%", padding: 12, borderRadius: 8, border: "none", background: "#1D9E75", color: "#fff", fontWeight: 700, fontSize: 14, cursor: "pointer" }}>
+            ⚡ Ir a analizar partidos
+          </button>
+          <div style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginTop: 8 }}>💾 La configuración se guarda automáticamente en tu navegador.</div>
         </div>
       )}
 
       {/* ── ANALYZE ── */}
       {tab === "analyze" && (
         <div>
-          <div style={{ ...card, padding: "10px 14px", background: hasProxy ? "#f0fdf4" : "#fffbeb", borderColor: hasProxy ? "#bbf7d0" : "#fde68a", marginBottom: 14 }}>
+          <div style={{ ...card, padding: "10px 14px", marginBottom: 14, background: hasRealData ? "#f0fdf4" : hasProxy ? "#f0f9ff" : "#fef2f2", borderColor: hasRealData ? "#bbf7d0" : hasProxy ? "#bae6fd" : "#fecaca" }}>
             <div style={{ fontSize: 13 }}>
-              {hasProxy
+              {hasRealData
                 ? <span style={{ color: "#15803d" }}>📡 <strong>Datos reales activados</strong> — estadísticas, H2H y lesionados de API-Football en tiempo real.</span>
-                : <span style={{ color: "#92400e" }}>💡 Modo IA. <button onClick={() => setTab("setup")} style={{ background: "none", border: "none", color: "#92400e", textDecoration: "underline", cursor: "pointer", fontSize: 13, padding: 0 }}>Configura datos reales →</button></span>
+                : hasProxy
+                ? <span style={{ color: "#0369a1" }}>🤖 <strong>Modo IA</strong> — Claude configurado. <button onClick={() => setTab("setup")} style={{ background: "none", border: "none", color: "#0369a1", textDecoration: "underline", cursor: "pointer", fontSize: 13, padding: 0 }}>Agrega API-Football para datos reales →</button></span>
+                : <span style={{ color: "#b91c1c" }}>⚠️ <strong>Configuración incompleta.</strong> <button onClick={() => setTab("setup")} style={{ background: "none", border: "none", color: "#b91c1c", textDecoration: "underline", cursor: "pointer", fontSize: 13, padding: 0 }}>Configura el Worker y Claude API Key →</button></span>
               }
             </div>
           </div>
@@ -457,12 +434,12 @@ export default function App() {
             </div>
             <div style={{ marginBottom: 14 }}>
               <label style={{ fontSize: 12, color: "#6b7280", display: "block", marginBottom: 5 }}>📝 Contexto — altitud, clima, suspendidos, noticias...</label>
-              <textarea style={{ ...inp, resize: "vertical" }} value={form.ctx} onChange={setF("ctx")} rows={2} placeholder="Ej: El Campín lleno. El técnico confirmó que el capitán no juega. Partido clave por clasificación..." />
+              <textarea style={{ ...inp, resize: "vertical" }} value={form.ctx} onChange={setF("ctx")} rows={2} placeholder="Ej: El Campín lleno. El técnico confirmó que el capitán no juega..." />
             </div>
             {err && <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#b91c1c", marginBottom: 10 }}>{err}</div>}
             {loading && step && <div style={{ background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#15803d", marginBottom: 10 }}>{step}</div>}
             <button onClick={analyze} disabled={loading} style={{ width: "100%", padding: 12, borderRadius: 8, border: "none", background: loading ? "#d1fae5" : "#1D9E75", color: loading ? "#065f46" : "#fff", fontWeight: 700, fontSize: 14, cursor: loading ? "not-allowed" : "pointer" }}>
-              {loading ? (step || "⚡ Analizando...") : hasProxy ? "⚡ Analizar con datos reales" : "⚡ Analizar con IA"}
+              {loading ? (step || "⚡ Analizando...") : hasRealData ? "⚡ Analizar con datos reales" : "⚡ Analizar con IA"}
             </button>
           </div>
         </div>
@@ -492,7 +469,7 @@ export default function App() {
               <Badge color="#1D9E75">🎁 Free hoy</Badge>
               {data.hasRealData && <Badge color="#0ea5e9">📡 Datos reales</Badge>}
             </div>
-            <div style={{ fontWeight: 700, fontSize: 22, marginBottom: data.hasRealData?10:14 }}>
+            <div style={{ fontWeight: 700, fontSize: 22, marginBottom: data.hasRealData ? 10 : 14 }}>
               {data.teamA} <span style={{ color: "#9ca3af", fontWeight: 400 }}>vs</span> {data.teamB}
             </div>
             {data.hasRealData && (
@@ -535,9 +512,7 @@ export default function App() {
           <PostBox d={data} />
 
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16 }}>
-            <button onClick={() => { setData(null); setTab("analyze"); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #e5e7eb", background: "transparent", color: "#6b7280", cursor: "pointer", fontSize: 13 }}>
-              🔄 Nuevo análisis
-            </button>
+            <button onClick={() => { setData(null); setTab("analyze"); }} style={{ padding: "8px 16px", borderRadius: 8, border: "1px solid #e5e7eb", background: "transparent", color: "#6b7280", cursor: "pointer", fontSize: 13 }}>🔄 Nuevo análisis</button>
           </div>
         </div>
       )}
@@ -552,21 +527,21 @@ export default function App() {
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(200px,1fr))", gap: 12 }}>
             {[
-              { label: "Free", price: "$0/día", color: "#1D9E75", feats: ["1 análisis por día","Cuota mínima 1.4","Post Telegram/WhatsApp","IA sin datos en vivo"], cta: "Usar ahora", action: ()=>setTab("analyze"), hl: false },
-              { label: "Premium", price: "$4.99/día", color: "#1D9E75", feats: ["Datos reales API-Football","Forma, H2H y lesionados","Gráficas con datos reales","Post listo para publicar"], cta: "Comprar hoy", hl: true },
-              { label: "Canal Mes", price: "$39.99/mes", color: "#378ADD", feats: ["Todas las apuestas del mes","Canal privado Telegram","Alertas antes del partido","Soporte personalizado"], cta: "Unirse al canal", hl: false },
+              { label:"Free", price:"$0/día", color:"#1D9E75", feats:["1 análisis por día","Cuota mínima 1.4","Post Telegram/WhatsApp","IA sin datos en vivo"], cta:"Usar ahora", action:()=>setTab("analyze"), hl:false },
+              { label:"Premium", price:"$4.99/día", color:"#1D9E75", feats:["Datos reales API-Football","Forma, H2H y lesionados","Gráficas con datos reales","Post listo para publicar"], cta:"Comprar hoy", hl:true },
+              { label:"Canal Mes", price:"$39.99/mes", color:"#378ADD", feats:["Todas las apuestas del mes","Canal privado Telegram","Alertas antes del partido","Soporte personalizado"], cta:"Unirse al canal", hl:false },
             ].map(p => (
-              <div key={p.label} style={{ ...card, marginBottom: 0, border: p.hl?"2px solid #1D9E75":"1px solid #e5e7eb" }}>
+              <div key={p.label} style={{ ...card, marginBottom:0, border:p.hl?"2px solid #1D9E75":"1px solid #e5e7eb" }}>
                 <Badge color={p.color}>{p.label}</Badge>
-                <div style={{ fontWeight: 700, fontSize: 22, margin: "10px 0 14px" }}>{p.price}</div>
-                {p.feats.map(f => <div key={f} style={{ display: "flex", gap: 7, fontSize: 13, color: "#6b7280", marginBottom: 7 }}><span style={{ color: "#1D9E75" }}>✓</span>{f}</div>)}
-                <button onClick={p.action||undefined} style={{ width: "100%", marginTop: 14, padding: 10, borderRadius: 8, border: "none", background: p.hl?"#1D9E75":"#f3f4f6", color: p.hl?"#fff":"#374151", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>{p.cta}</button>
+                <div style={{ fontWeight:700, fontSize:22, margin:"10px 0 14px" }}>{p.price}</div>
+                {p.feats.map(f => <div key={f} style={{ display:"flex", gap:7, fontSize:13, color:"#6b7280", marginBottom:7 }}><span style={{ color:"#1D9E75" }}>✓</span>{f}</div>)}
+                <button onClick={p.action||undefined} style={{ width:"100%", marginTop:14, padding:10, borderRadius:8, border:"none", background:p.hl?"#1D9E75":"#f3f4f6", color:p.hl?"#fff":"#374151", fontWeight:700, fontSize:13, cursor:"pointer" }}>{p.cta}</button>
               </div>
             ))}
           </div>
-          <div style={{ textAlign: "center", fontSize: 12, color: "#9ca3af", marginTop: 16 }}>Las apuestas son sugerencias estadísticas. Juega responsablemente.</div>
+          <div style={{ textAlign:"center", fontSize:12, color:"#9ca3af", marginTop:16 }}>Las apuestas son sugerencias estadísticas. Juega responsablemente.</div>
         </div>
       )}
-    </div>
+    </div
   );
 }
