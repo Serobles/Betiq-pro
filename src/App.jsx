@@ -502,10 +502,19 @@ function Historial() {
   const [showAdd, setShowAdd]   = useState(false);
   const [form, setForm]         = useState({ partido:"", mercado:"", cuota:"", resultado:"PENDIENTE", fecha:"", categoria:"premium" });
 
-  useEffect(() => {
-    try { const r=localStorage.getItem("betscore_historial"); if(r) setRecords(JSON.parse(r)); }
-    catch { setRecords([]); }
+  const loadFromStorage = () => {
+    try {
+      const r = localStorage.getItem("betscore_historial");
+      if (r) setRecords(JSON.parse(r));
+      else setRecords([]);
+    } catch { setRecords([]); }
     setLoaded(true);
+  };
+
+  useEffect(() => {
+    loadFromStorage();
+    window.addEventListener("storage", loadFromStorage);
+    return () => window.removeEventListener("storage", loadFromStorage);
   }, []);
 
   const save = async (newRecs) => {
@@ -1031,48 +1040,50 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
 
       // ── Auto-guardar análisis en historial ──────────────────────────
       try {
+        const KEY = "betscore_historial";
         let prev = [];
-        try {
-          const stored = localStorage.getItem("betscore_historial");
-          if (stored) prev = JSON.parse(stored);
-        } catch { prev = []; } // clave no existe aún — primera vez
+        try { prev = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { prev = []; }
 
         const newRecord = {
           id: Date.now(),
           fecha_analisis: new Date().toLocaleDateString("es-CO"),
           hora_analisis: new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }),
-          partido: `${parsed.partido?.local} vs ${parsed.partido?.visitante}`,
-          local: parsed.partido?.local || form.local,
-          visitante: parsed.partido?.visitante || form.visitante,
-          competicion: parsed.partido?.competicion || "N/D",
-          fecha_partido: parsed.partido?.fecha || form.fecha || "N/D",
-          mercado_1: nombre1,
-          desc_1: desc1,
-          cuota_1: parseFloat(cuota1),
-          ev_1: parseFloat(ev1),
-          confianza_1: conf1,
-          fuente_1: fuente1,
-          mercado_2: t2.nombre || "—",
-          cuota_2: t2.cuota || 0,
-          ev_2: parseFloat(((t2.ev || 0) * 100).toFixed(1)),
-          mercado_3: t3.nombre || "—",
-          cuota_3: t3.cuota || 0,
-          ev_3: parseFloat(((t3.ev || 0) * 100).toFixed(1)),
-          prob_local: pr.victoria_local || 0,
-          prob_empate: pr.empate || 0,
-          prob_visitante: pr.victoria_visitante || 0,
-          bajas_local: bL,
-          bajas_visitante: bV,
+          partido: String((parsed?.partido?.local || form.local || "") + " vs " + (parsed?.partido?.visitante || form.visitante || "")),
+          local: String(parsed?.partido?.local || form.local || ""),
+          visitante: String(parsed?.partido?.visitante || form.visitante || ""),
+          competicion: String(parsed?.partido?.competicion || "N/D"),
+          fecha_partido: String(parsed?.partido?.fecha || form.fecha || "N/D"),
+          mercado_1: String(nombre1 || "—"),
+          desc_1: String(desc1 || "—"),
+          cuota_1: Number(parseFloat(cuota1)) || 0,
+          ev_1: Number(parseFloat(ev1)) || 0,
+          confianza_1: String(conf1 || "—"),
+          fuente_1: String(fuente1 || "Estimada"),
+          mercado_2: String(t2?.nombre || "—"),
+          cuota_2: Number(t2?.cuota) || 0,
+          ev_2: Number(parseFloat(((t2?.ev || 0) * 100).toFixed(1))) || 0,
+          mercado_3: String(t3?.nombre || "—"),
+          cuota_3: Number(t3?.cuota) || 0,
+          ev_3: Number(parseFloat(((t3?.ev || 0) * 100).toFixed(1))) || 0,
+          prob_local: Number(pr?.victoria_local) || 0,
+          prob_empate: Number(pr?.empate) || 0,
+          prob_visitante: Number(pr?.victoria_visitante) || 0,
+          bajas_local: String(bL || "Sin bajas"),
+          bajas_visitante: String(bV || "Sin bajas"),
           resultado: "PENDIENTE",
-          apuesta_jugada: nombre1,
-          cuota_jugada: parseFloat(cuota1),
+          apuesta_jugada: String(nombre1 || "—"),
+          cuota_jugada: Number(parseFloat(cuota1)) || 0,
+          monto_apostado: 0,
           ganancia_unidades: null,
+          categoria: "premium",
         };
 
-        const updated = [newRecord, ...prev];
-        localStorage.setItem("betscore_historial", JSON.stringify(updated));
-      } catch (e) {
-        console.warn("Auto-save historial falló:", e.message);
+        const serialized = JSON.stringify([newRecord, ...prev]);
+        localStorage.setItem(KEY, serialized);
+        // Notificar al componente Historial si está montado
+        window.dispatchEvent(new StorageEvent("storage", { key: KEY, newValue: serialized }));
+      } catch (saveErr) {
+        console.error("Auto-save historial error:", saveErr);
       }
     } catch (e) {
       clearInterval(iv);
