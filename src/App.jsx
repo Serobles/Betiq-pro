@@ -34,21 +34,33 @@ const MERCADOS_ICONS = {
   "HT/FT": "📊"
 };
 
-const SYSTEM_PROMPT = `Eres un analista de apuestas deportivas. Responde SOLO con JSON entre marcadores exactos.
+const SYSTEM_PROMPT = `Analista de apuestas. Responde SOLO con el JSON entre los marcadores. Prohibido texto fuera de ellos.
 
-FORMATO OBLIGATORIO:
 ---JSON_START---
-{json}
+{
+  "partido":{"local":"Arsenal","visitante":"Burnley","competicion":"Premier League","fecha":"19/05/2026","estadio":"Emirates Stadium"},
+  "mercados_analizados":[
+    {"nombre":"Handicap Asiatico Arsenal -2.5","descripcion":"Arsenal gana por 3 o mas goles","cuota":1.78,"cuota_fuente":"Bet365","prob_real":62,"prob_implicita":56,"ev":0.10,"nivel_confianza":68,"recomendado":true,"ranking":1,"razon":"EV positivo por diferencia de nivel"},
+    {"nombre":"Over 3.5 Goles","descripcion":"El partido termina con 4 o mas goles","cuota":1.95,"cuota_fuente":"Bet365","prob_real":55,"prob_implicita":51,"ev":0.07,"nivel_confianza":62,"recomendado":true,"ranking":2,"razon":"Arsenal promedia muchos goles en casa"},
+    {"nombre":"Arsenal Gana a Cero","descripcion":"Arsenal gana sin recibir goles","cuota":2.10,"cuota_fuente":"Bet365","prob_real":50,"prob_implicita":48,"ev":0.05,"nivel_confianza":58,"recomendado":false,"ranking":3,"razon":"Burnley anotador limitado fuera"},
+    {"nombre":"1X2 Victoria Local","descripcion":"Arsenal gana el partido","cuota":1.09,"cuota_fuente":"Bet365","prob_real":92,"prob_implicita":92,"ev":0.00,"nivel_confianza":90,"recomendado":false,"ranking":4,"razon":"Sin valor por cuota baja"},
+    {"nombre":"BTTS No","descripcion":"Al menos un equipo no anota","cuota":1.65,"cuota_fuente":"Bet365","prob_real":60,"prob_implicita":61,"ev":-0.01,"nivel_confianza":60,"recomendado":false,"ranking":5,"razon":"Burnley debil en ataque"},
+    {"nombre":"Over 2.5 Goles","descripcion":"El partido termina con 3 o mas goles","cuota":1.40,"cuota_fuente":"Bet365","prob_real":72,"prob_implicita":71,"ev":0.01,"nivel_confianza":70,"recomendado":false,"ranking":6,"razon":"Arsenal atacante pero cuota baja"},
+    {"nombre":"Doble Oportunidad 1X","descripcion":"Arsenal gana o empata","cuota":1.03,"cuota_fuente":"Bet365","prob_real":97,"prob_implicita":97,"ev":0.00,"nivel_confianza":97,"recomendado":false,"ranking":7,"razon":"Sin valor"},
+    {"nombre":"Corners Arsenal mas de 6.5","descripcion":"Arsenal saca mas de 6 corners","cuota":1.85,"cuota_fuente":"Estimada","prob_real":55,"prob_implicita":54,"ev":0.02,"nivel_confianza":55,"recomendado":false,"ranking":8,"razon":"Arsenal domina en casa"}
+  ],
+  "top_apuesta":{"mercado":"Handicap Asiatico Arsenal -2.5","descripcion":"Arsenal gana por 3 o mas goles","cuota":1.78,"cuota_fuente":"Bet365","prob_real":62,"prob_implicita":56,"ev":0.10,"nivel_confianza":68,"nivel_riesgo":"MEDIO","razon_ejecutiva":"Arsenal es amplio favorito en casa contra Burnley. La diferencia de calidad sugiere victoria amplia con EV positivo real."},
+  "probabilidades_1x2":{"victoria_local":85,"empate":10,"victoria_visitante":5},
+  "bajas":{"local":[{"nombre":"Bukayo Saka","posicion":"EXT","es_titular":true}],"visitante":[]},
+  "factores":{"forma_local":85,"forma_visitante":30,"presion_local":60,"motivacion_local":80,"motivacion_visitante":40,"cansancio_local":20,"cansancio_visitante":50},
+  "puntos_clave":["Arsenal invicto en casa en las ultimas 10 jornadas","Burnley sin victorias fuera en la segunda vuelta","Diferencia de 50 puntos en tabla"],
+  "analisis_general":"Arsenal domina con autoridad en casa. Burnley no tiene recursos para competir al mismo nivel. La mejor apuesta es la victoria amplia del local."
+}
 ---JSON_END---
 
-REGLAS CRITICAS:
-1. SOLO el bloque JSON. Nada antes ni despues.
-2. Los valores de texto NO deben tener comillas dobles internas. Usa punto para separar ideas.
-3. Cuota minima apuesta #1: 1.40. Solo recomienda EV positivo.
-4. Mercados a analizar: 1X2, Doble Oportunidad, BTTS, Over 2.5, Under 2.5, Over 1.5, Handicap Asiatico -1, Corners.
+INSTRUCCIONES: Rellena el JSON anterior con datos REALES del partido indicado. Mantén la estructura exacta. Los campos de texto solo letras, numeros, espacios y puntos. PROHIBIDO usar comillas dobles dentro de valores de texto.`;`
 
-ESQUEMA JSON EXACTO (copia esta estructura):
-{"partido":{"local":"str","visitante":"str","competicion":"str","fecha":"str"},"mercados_analizados":[{"nombre":"str","descripcion":"str sin comillas","cuota":1.75,"cuota_fuente":"Bet365","prob_real":65,"prob_implicita":57,"ev":0.14,"nivel_confianza":72,"recomendado":true,"ranking":1,"razon":"str sin comillas"},{"nombre":"str","descripcion":"str","cuota":1.90,"cuota_fuente":"Bet365","prob_real":58,"prob_implicita":53,"ev":0.09,"nivel_confianza":65,"recomendado":true,"ranking":2,"razon":"str"},{"nombre":"str","descripcion":"str","cuota":2.10,"cuota_fuente":"Bet365","prob_real":50,"prob_implicita":48,"ev":0.05,"nivel_confianza":60,"recomendado":false,"ranking":3,"razon":"str"},{"nombre":"str","descripcion":"str","cuota":1.65,"cuota_fuente":"Estimada","prob_real":70,"prob_implicita":61,"ev":0.15,"nivel_confianza":68,"recomendado":false,"ranking":4,"razon":"str"},{"nombre":"str","descripcion":"str","cuota":1.80,"cuota_fuente":"Estimada","prob_real":62,"prob_implicita":56,"ev":0.10,"nivel_confianza":64,"recomendado":false,"ranking":5,"razon":"str"},{"nombre":"str","descripcion":"str","cuota":2.20,"cuota_fuente":"Estimada","prob_real":48,"prob_implicita":45,"ev":0.06,"nivel_confianza":58,"recomendado":false,"ranking":6,"razon":"str"},{"nombre":"str","descripcion":"str","cuota":1.95,"cuota_fuente":"Estimada","prob_real":55,"prob_implicita":51,"ev":0.07,"nivel_confianza":62,"recomendado":false,"ranking":7,"razon":"str"},{"nombre":"str","descripcion":"str","cuota":2.50,"cuota_fuente":"Estimada","prob_real":42,"prob_implicita":40,"ev":0.05,"nivel_confianza":55,"recomendado":false,"ranking":8,"razon":"str"}],"top_apuesta":{"mercado":"str","descripcion":"str sin comillas","cuota":1.75,"cuota_fuente":"Bet365","prob_real":65,"prob_implicita":57,"ev":0.14,"nivel_confianza":72,"nivel_riesgo":"BAJO","razon_ejecutiva":"str sin comillas. Maximo 2 oraciones."},"probabilidades_1x2":{"victoria_local":55,"empate":25,"victoria_visitante":20},"bajas":{"local":[{"nombre":"str","posicion":"DC","es_titular":true}],"visitante":[]},"factores":{"forma_local":75,"forma_visitante":45,"presion_local":70,"motivacion_local":80,"motivacion_visitante":50,"cansancio_local":20,"cansancio_visitante":30},"puntos_clave":["str","str","str"],"analisis_general":"str sin comillas. Maximo 3 oraciones."}`;
+const PIE_COLORS;
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
 
