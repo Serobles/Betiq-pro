@@ -503,16 +503,13 @@ function Historial() {
   const [form, setForm]         = useState({ partido:"", mercado:"", cuota:"", resultado:"PENDIENTE", fecha:"", categoria:"premium" });
 
   useEffect(() => {
-    const load = async () => {
-      try { const r=await window.storage.get("betscore_historial"); if(r?.value) setRecords(JSON.parse(r.value)); }
-      catch { setRecords([]); }
-      setLoaded(true);
-    };
-    load();
+    try { const r=localStorage.getItem("betscore_historial"); if(r) setRecords(JSON.parse(r)); }
+    catch { setRecords([]); }
+    setLoaded(true);
   }, []);
 
   const save = async (newRecs) => {
-    try { await window.storage.set("betscore_historial", JSON.stringify(newRecs)); } catch {}
+    try { localStorage.setItem("betscore_historial", JSON.stringify(newRecs)); } catch {}
     setRecords(newRecs);
   };
 
@@ -1036,8 +1033,8 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
       try {
         let prev = [];
         try {
-          const stored = await window.storage.get("betscore_historial");
-          if (stored?.value) prev = JSON.parse(stored.value);
+          const stored = localStorage.getItem("betscore_historial");
+          if (stored) prev = JSON.parse(stored);
         } catch { prev = []; } // clave no existe aún — primera vez
 
         const newRecord = {
@@ -1073,7 +1070,7 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
         };
 
         const updated = [newRecord, ...prev];
-        await window.storage.set("betscore_historial", JSON.stringify(updated));
+        localStorage.setItem("betscore_historial", JSON.stringify(updated));
       } catch (e) {
         console.warn("Auto-save historial falló:", e.message);
       }
