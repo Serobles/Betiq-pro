@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, RadarChart, Radar, PolarGrid, PolarAngleAxis, Legend,
@@ -6,21 +7,22 @@ import {
 } from "recharts";
 
 const C = {
-  bg: "#07090f",
-  card: "#0e1320",
-  card2: "#141b2d",
-  card3: "#1a2238",
-  border: "#1e2d45",
-  accent: "#f59e0b",
-  green: "#10b981",
-  greenDim: "#052e16",
-  red: "#ef4444",
-  redDim: "#450a0a",
-  blue: "#3b82f6",
-  purple: "#a78bfa",
-  text: "#f1f5f9",
-  muted: "#94a3b8",
-  dim: "#475569",
+  bg:       "#0d1b2a",
+  card:     "#162436",
+  card2:    "#1c2e44",
+  card3:    "#22384f",
+  border:   "#2a4060",
+  accent:   "#22c55e",
+  accentDim:"#14532d",
+  green:    "#4ade80",
+  greenDim: "#14532d",
+  red:      "#f87171",
+  redDim:   "#4c0519",
+  blue:     "#60a5fa",
+  purple:   "#c084fc",
+  text:     "#e2f0fb",
+  muted:    "#7eb8d4",
+  dim:      "#4a7090",
 };
 
 const MERCADOS_ICONS = {
@@ -244,8 +246,8 @@ RESPONDE ÚNICAMENTE CON ESTE JSON EXACTO
     "corners_promedio_partido": 10.7,
     "tarjetas_promedio_partido": 3.7
   },
-  "post_telegram": "🏆 *BETIQ PRO* — ANÁLISIS ÉLITE\\n\\n⚽ [Local] vs [Visitante]\\n🏆 [Competición] | [Fecha]\\n\\n━━━━━━━━━━━━━━━━━━━━\\n🥇 APUESTA #1 — MAYOR VALOR\\n━━━━━━━━━━━━━━━━━━━━\\n🎯 [Mercado]: [Descripción]\\n💰 Cuota: [X.XX] ([Fuente])\\n📊 Confianza: [X]% | EV: +[Y]%\\n\\n🥈 ALTERNATIVA #2\\n🎯 [Mercado 2]: [Descripción]\\n💰 Cuota: [X.XX] | Confianza: [X]%\\n\\n🥉 ALTERNATIVA #3\\n🎯 [Mercado 3]: [Descripción]\\n💰 Cuota: [X.XX] | Confianza: [X]%\\n\\n━━━━━━━━━━━━━━━━━━━━\\n🔑 PUNTOS CLAVE\\n━━━━━━━━━━━━━━━━━━━━\\n• [Punto con jugador específico]\\n• [Estadística específica]\\n• [Contexto relevante]\\n\\n🏥 Bajas: [Jugador] ([pos.]) — [estado]\\n\\n⚡ Local [X]% | Empate [X]% | Visit. [X]%\\n⚠️ Solo sugerencia. Juega responsable.",
-  "post_whatsapp": "🏆 *BETIQ PRO*\\n\\n⚽ *[Local] vs [Visitante]*\\n📅 [Fecha] | 🏆 [Competición]\\n\\n─────────────────────\\n🥇 *MEJOR APUESTA*\\n─────────────────────\\n🎯 *[Mercado]*\\n📝 [Descripción]\\n💰 Cuota: *[X.XX]* ([Fuente])\\n✅ Confianza: *[X]%* | EV: *+[Y]%*\\n\\n─────────────────────\\n🥈 *ALTERNATIVA*\\n─────────────────────\\n🎯 [Mercado 2] — Cuota *[X.XX]*\\n🎯 [Mercado 3] — Cuota *[X.XX]*\\n\\n─────────────────────\\n🔑 *PUNTOS CLAVE*\\n─────────────────────\\n1️⃣ [Jugador específico + situación]\\n2️⃣ [Estadística específica]\\n3️⃣ [Contexto de valor]\\n\\n🏥 *Bajas:* [Jugador] ([pos.]) — [estado]\\n\\n📊 Local [X]% | Empate [X]% | Visit. [X]%\\n_⚠️ Solo sugerencia. Juega responsable._"
+  "post_telegram": "🏆 *BetClaude IA* — ANÁLISIS ÉLITE\\n\\n⚽ [Local] vs [Visitante]\\n🏆 [Competición] | [Fecha]\\n\\n━━━━━━━━━━━━━━━━━━━━\\n🥇 APUESTA #1 — MAYOR VALOR\\n━━━━━━━━━━━━━━━━━━━━\\n🎯 [Mercado]: [Descripción]\\n💰 Cuota: [X.XX] ([Fuente])\\n📊 Confianza: [X]% | EV: +[Y]%\\n\\n🥈 ALTERNATIVA #2\\n🎯 [Mercado 2]: [Descripción]\\n💰 Cuota: [X.XX] | Confianza: [X]%\\n\\n🥉 ALTERNATIVA #3\\n🎯 [Mercado 3]: [Descripción]\\n💰 Cuota: [X.XX] | Confianza: [X]%\\n\\n━━━━━━━━━━━━━━━━━━━━\\n🔑 PUNTOS CLAVE\\n━━━━━━━━━━━━━━━━━━━━\\n• [Punto con jugador específico]\\n• [Estadística específica]\\n• [Contexto relevante]\\n\\n🏥 Bajas: [Jugador] ([pos.]) — [estado]\\n\\n⚡ Local [X]% | Empate [X]% | Visit. [X]%\\n⚠️ Solo sugerencia. Juega responsable.",
+  "post_whatsapp": "🏆 *BetClaude IA*\\n\\n⚽ *[Local] vs [Visitante]*\\n📅 [Fecha] | 🏆 [Competición]\\n\\n─────────────────────\\n🥇 *MEJOR APUESTA*\\n─────────────────────\\n🎯 *[Mercado]*\\n📝 [Descripción]\\n💰 Cuota: *[X.XX]* ([Fuente])\\n✅ Confianza: *[X]%* | EV: *+[Y]%*\\n\\n─────────────────────\\n🥈 *ALTERNATIVA*\\n─────────────────────\\n🎯 [Mercado 2] — Cuota *[X.XX]*\\n🎯 [Mercado 3] — Cuota *[X.XX]*\\n\\n─────────────────────\\n🔑 *PUNTOS CLAVE*\\n─────────────────────\\n1️⃣ [Jugador específico + situación]\\n2️⃣ [Estadística específica]\\n3️⃣ [Contexto de valor]\\n\\n🏥 *Bajas:* [Jugador] ([pos.]) — [estado]\\n\\n📊 Local [X]% | Empate [X]% | Visit. [X]%\\n_⚠️ Solo sugerencia. Juega responsable._"
 }`;
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
@@ -296,7 +298,7 @@ function ScoreBar({ local, visitante }) {
 }
 
 function MercadoCard({ m, partido, rank }) {
-  const rankColors = { 1: C.accent, 2: C.muted, 3: C.dim };
+  const rankColors = { 1: C.accent, 2: C.blue, 3: C.dim };
   const rankLabels = { 1: "🥇 MEJOR VALOR", 2: "🥈 ALTERNATIVA", 3: "🥉 OPCIÓN 3" };
   return (
     <div style={{
@@ -361,205 +363,424 @@ function BajaCard({ b }) {
   );
 }
 
-// ─── HISTORIAL ───────────────────────────────────────────────────────────────
+// ─── HISTORIAL ESTILO FINTECH ────────────────────────────────────────────────
+const CATEGORIAS = [
+  { id: "free",    label: "IA Free",    icon: "💵", color: "#22c55e", bg: "#14532d" },
+  { id: "premium", label: "IA Premium", icon: "💰", color: "#60a5fa", bg: "#1e3a5f" },
+  { id: "vip",     label: "Grupo VIP",  icon: "💎", color: "#c084fc", bg: "#3b1f5e" },
+];
+const CAT = Object.fromEntries(CATEGORIAS.map(c => [c.id, c]));
+
+function TransaccionCard({ r, onResult, onDelete, onUpdateField, records, save }) {
+  const [expanded, setExpanded] = useState(false);
+  const cuota  = r.cuota_jugada || r.cuota_1 || 0;
+  const monto  = parseFloat(r.monto_apostado) || 0;
+  const gan    = r.resultado === "GANADA"  ? monto * (cuota - 1)
+               : r.resultado === "PERDIDA" ? -monto
+               : r.resultado === "ANULADA" ? 0 : null;
+  const cat    = CAT[r.categoria] || CAT.premium;
+  const isPos  = gan > 0;
+  const isNeg  = gan < 0;
+  const amtColor = isPos ? "#10B981" : isNeg ? "#EF4444" : C.muted;
+  const amtStr   = gan !== null
+    ? `${gan >= 0 ? "+" : ""}$${Math.abs(gan).toFixed(2)}`
+    : r.resultado === "PENDIENTE" ? "Pendiente" : "—";
+
+  return (
+    <div style={{ borderBottom: `1px solid ${C.border}` }}>
+      {/* Fila principal */}
+      <div onClick={() => setExpanded(e => !e)} style={{ display:"flex", alignItems:"center", gap:12, padding:"14px 16px", cursor:"pointer", background: expanded ? C.card2 : "transparent", transition:"background .15s" }}>
+        {/* Icono categoría */}
+        <div style={{ width:44, height:44, borderRadius:12, background:cat.bg, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>
+          {cat.icon}
+        </div>
+        {/* Info */}
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+            <span style={{ fontWeight:700, fontSize:14, color:C.text }}>{cat.label}</span>
+            <span style={{ fontWeight:800, fontSize:15, color:amtColor, flexShrink:0, marginLeft:8 }}>{amtStr}</span>
+          </div>
+          <div style={{ fontSize:12, color:C.muted, marginTop:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+            {r.partido || `${r.local||""} vs ${r.visitante||""}`}
+          </div>
+          <div style={{ display:"flex", gap:8, marginTop:4, alignItems:"center" }}>
+            {r.fecha_partido && <span style={{ fontSize:10, color:C.dim }}>{r.fecha_partido}</span>}
+            {cuota > 0 && <span style={{ fontSize:11, color:cat.color, fontWeight:700 }}>#{cuota.toFixed(2)}</span>}
+            <span style={{ fontSize:10, fontWeight:700, color: r.resultado==="GANADA"?"#10B981":r.resultado==="PERDIDA"?"#EF4444":r.resultado==="ANULADA"?"#6B7280":"#F59E0B" }}>
+              {r.resultado==="PENDIENTE" ? "⏳" : r.resultado==="GANADA" ? "✅" : r.resultado==="PERDIDA" ? "❌" : "🚫"} {r.resultado||"PENDIENTE"}
+            </span>
+          </div>
+        </div>
+        <div style={{ color:C.dim, fontSize:12, flexShrink:0 }}>{expanded ? "▲" : "▶"}</div>
+      </div>
+
+      {/* Panel expandido */}
+      {expanded && (
+        <div style={{ background:C.card2, padding:"14px 16px 16px", borderTop:`1px solid ${C.border}` }}>
+          {/* Mercado jugado */}
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:11, color:C.dim, marginBottom:4 }}>Apuesta jugada</div>
+            <div style={{ fontWeight:600, fontSize:13, color:C.text }}>{r.apuesta_jugada || r.mercado_1 || "—"}</div>
+            {r.desc_1 && <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{r.desc_1}</div>}
+          </div>
+
+          {/* Selector categoría */}
+          <div style={{ marginBottom:12 }}>
+            <div style={{ fontSize:11, color:C.dim, marginBottom:6 }}>Categoría</div>
+            <div style={{ display:"flex", gap:6 }}>
+              {CATEGORIAS.map(c => (
+                <button key={c.id} onClick={async e => { e.stopPropagation(); const u=records.map(rec=>rec.id!==r.id?rec:{...rec,categoria:c.id}); await save(u); }}
+                  style={{ flex:1, padding:"6px 4px", borderRadius:8, border:`1.5px solid ${r.categoria===c.id?c.color:C.border}`, background:r.categoria===c.id?c.bg:"transparent", cursor:"pointer", fontSize:11, fontWeight:700, color:r.categoria===c.id?c.color:C.muted }}>
+                  {c.icon} {c.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Selector mercado jugado */}
+          {r.mercado_2 && r.mercado_2 !== "—" && r.resultado === "PENDIENTE" && (
+            <div style={{ marginBottom:12 }}>
+              <div style={{ fontSize:11, color:C.dim, marginBottom:6 }}>¿Cuál mercado jugaste?</div>
+              <div style={{ display:"flex", flexDirection:"column", gap:5 }}>
+                {[{key:r.mercado_1,cuota:r.cuota_1},{key:r.mercado_2,cuota:r.cuota_2},{key:r.mercado_3,cuota:r.cuota_3}]
+                  .filter(m=>m.key&&m.key!=="—")
+                  .map((m,i)=>(
+                    <button key={m.key} onClick={async e=>{ e.stopPropagation(); const u=records.map(rec=>rec.id!==r.id?rec:{...rec,apuesta_jugada:m.key,cuota_jugada:m.cuota}); await save(u); }}
+                      style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 10px", borderRadius:6, border:`1px solid ${r.apuesta_jugada===m.key?C.accent:C.border}`, background:r.apuesta_jugada===m.key?C.accent+"22":"transparent", cursor:"pointer" }}>
+                      <span style={{ fontSize:12, color:r.apuesta_jugada===m.key?C.accent:C.muted }}>#{i+1} {m.key}</span>
+                      <span style={{ fontSize:13, fontWeight:700, color:C.accent }}>x{(m.cuota||0).toFixed(2)}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {/* Monto apostado */}
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+            <span style={{ fontSize:11, color:C.dim, whiteSpace:"nowrap" }}>Monto apostado</span>
+            <div style={{ position:"relative", flex:1, maxWidth:140 }}>
+              <span style={{ position:"absolute", left:8, top:"50%", transform:"translateY(-50%)", fontSize:12, color:C.muted }}>$</span>
+              <input type="number" step="0.01" min="0" value={r.monto_apostado||""} placeholder="0.00"
+                onClick={e=>e.stopPropagation()}
+                onChange={async e=>{ const u=records.map(rec=>rec.id!==r.id?rec:{...rec,monto_apostado:e.target.value}); await save(u); }}
+                style={{ background:C.card3, border:`1px solid ${C.border}`, borderRadius:6, padding:"5px 8px 5px 20px", color:C.text, fontSize:12, width:"100%", outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} />
+            </div>
+            {gan !== null && monto > 0 && (
+              <span style={{ fontSize:14, fontWeight:800, color:amtColor }}>{amtStr}</span>
+            )}
+          </div>
+
+          {/* Botones resultado */}
+          {r.resultado === "PENDIENTE" ? (
+            <div style={{ display:"flex", gap:6 }}>
+              <span style={{ fontSize:11, color:C.dim, alignSelf:"center", marginRight:4 }}>Resultado:</span>
+              {[["GANADA","✅ Ganó","#10B981","#052e16"],["PERDIDA","❌ Perdió","#EF4444","#450a0a"],["ANULADA","🚫 Anulada","#6B7280","#1f2937"]].map(([res,label,col,bg])=>(
+                <button key={res} onClick={e=>{ e.stopPropagation(); onResult(r.id,res); }}
+                  style={{ flex:1, padding:"7px 4px", borderRadius:7, border:`1px solid ${col}`, background:bg, color:col, fontSize:11, fontWeight:700, cursor:"pointer" }}>{label}</button>
+              ))}
+            </div>
+          ) : (
+            <div style={{ display:"flex", gap:8, alignItems:"center" }}>
+              <span style={{ fontSize:13, fontWeight:700, color:amtColor }}>{r.resultado} {amtStr}</span>
+              <button onClick={e=>{ e.stopPropagation(); onResult(r.id,"PENDIENTE"); }}
+                style={{ marginLeft:"auto", background:"transparent", border:`1px solid ${C.border}`, color:C.dim, borderRadius:5, padding:"3px 10px", fontSize:10, cursor:"pointer" }}>↩ Revertir</button>
+              <button onClick={e=>{ e.stopPropagation(); onDelete(r.id); }}
+                style={{ background:"transparent", border:`1px solid ${C.border}`, color:C.dim, borderRadius:5, padding:"3px 8px", fontSize:10, cursor:"pointer" }}>🗑</button>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Historial() {
-  const [records, setRecords] = useState([]);
-  const [loaded, setLoaded] = useState(false);
-  const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ partido: "", mercado: "", cuota: "", resultado: "PENDIENTE", fecha: "" });
+  const [records, setRecords]   = useState([]);
+  const [loaded, setLoaded]     = useState(false);
+  const [filtro, setFiltro]     = useState("TODOS");
+  const [exporting, setExporting] = useState(false);
+  const [showAdd, setShowAdd]   = useState(false);
+  const [form, setForm]         = useState({ partido:"", mercado:"", cuota:"", resultado:"PENDIENTE", fecha:"", categoria:"premium" });
 
   useEffect(() => {
     const load = async () => {
-      try {
-        const r = await window.storage.get("betiq_historial");
-        if (r?.value) setRecords(JSON.parse(r.value));
-      } catch { setRecords([]); }
+      try { const r=await window.storage.get("betiq_historial"); if(r?.value) setRecords(JSON.parse(r.value)); }
+      catch { setRecords([]); }
       setLoaded(true);
     };
     load();
   }, []);
 
   const save = async (newRecs) => {
-    try { await window.storage.set("betiq_historial", JSON.stringify(newRecs)); } catch { }
+    try { await window.storage.set("betiq_historial", JSON.stringify(newRecs)); } catch {}
     setRecords(newRecs);
   };
 
-  const addRecord = async () => {
-    if (!form.partido || !form.cuota) return;
-    const newRec = { ...form, id: Date.now(), cuota: parseFloat(form.cuota), fecha: form.fecha || new Date().toLocaleDateString("es-CO") };
-    const updated = [newRec, ...records];
-    await save(updated);
-    setForm({ partido: "", mercado: "", cuota: "", resultado: "PENDIENTE", fecha: "" });
-    setShowAdd(false);
-  };
-
   const updateResult = async (id, resultado) => {
-    const updated = records.map(r => r.id === id ? { ...r, resultado } : r);
+    const updated = records.map(r => {
+      if (r.id !== id) return r;
+      const cuota = r.cuota_jugada||r.cuota_1||1;
+      const monto = parseFloat(r.monto_apostado)||0;
+      const ganancia = resultado==="GANADA" ? parseFloat((monto*(cuota-1)).toFixed(2)) : resultado==="PERDIDA" ? -monto : 0;
+      return { ...r, resultado, ganancia_unidades: ganancia };
+    });
     await save(updated);
   };
 
   const deleteRecord = async (id) => {
-    const updated = records.filter(r => r.id !== id);
-    await save(updated);
+    if (!window.confirm("¿Eliminar este registro?")) return;
+    await save(records.filter(r => r.id !== id));
   };
 
-  const won = records.filter(r => r.resultado === "GANADA");
-  const lost = records.filter(r => r.resultado === "PERDIDA");
-  const pending = records.filter(r => r.resultado === "PENDIENTE");
-  const closed = records.filter(r => r.resultado !== "PENDIENTE");
-  const winRate = closed.length > 0 ? ((won.length / closed.length) * 100).toFixed(1) : 0;
-  const roi = closed.length > 0
-    ? (((won.reduce((s, r) => s + r.cuota - 1, 0) - lost.length) / closed.length) * 100).toFixed(1)
-    : 0;
+  // ── EXPORTAR EXCEL (XML SpreadsheetML) ────────────────────────────
+  const exportarExcel = async () => {
+    setExporting(true);
+    try {
+      const won=records.filter(r=>r.resultado==="GANADA");
+      const lost=records.filter(r=>r.resultado==="PERDIDA");
+      const anuladas=records.filter(r=>r.resultado==="ANULADA");
+      const closed=[...won,...lost];
+      const totalApostado=records.reduce((s,r)=>s+(parseFloat(r.monto_apostado)||0),0);
+      const gNet=records.reduce((s,r)=>{
+        const m=parseFloat(r.monto_apostado)||0,c=r.cuota_jugada||r.cuota_1||1;
+        if(r.resultado==="GANADA") return s+m*(c-1);
+        if(r.resultado==="PERDIDA") return s-m;
+        return s;
+      },0);
+      const wRnum=closed.length>0?(won.length/closed.length)*100:null;
+      const wR=wRnum!==null?wRnum.toFixed(1):null;
+      const yld=totalApostado>0?((gNet/totalApostado)*100).toFixed(1):null;
+      const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/[\u{1F000}-\u{1FFFF}]/gu,'').replace(/[\u2600-\u27BF]/gu,'').trim();
+      const sid=res=>({GANADA:'wC',PERDIDA:'lC',ANULADA:'aC',PENDIENTE:'pC'}[res]||'pC');
+      const sidL=res=>({GANADA:'wL',PERDIDA:'lL',ANULADA:'aL',PENDIENTE:'pL'}[res]||'pL');
+      const sidB=res=>({GANADA:'wB',PERDIDA:'lB',ANULADA:'aC',PENDIENTE:'pC'}[res]||'pC');
+      const sumRows=[
+        ['TOTAL APUESTAS',String(records.length),'sumV'],
+        ['GANADAS',String(won.length),'sumG'],
+        ['PERDIDAS',String(lost.length),'sumR'],
+        ['ANULADAS',String(anuladas.length),'sumV'],
+        ['PENDIENTES',String(records.filter(r=>r.resultado==="PENDIENTE").length),'sumA'],
+        ['% ACIERTO',wR?`${wR}%`:'-',wRnum>=55?'sumG':wRnum>=40?'sumA':wR?'sumR':'sumV'],
+        ['YIELD',yld?`${parseFloat(yld)>=0?'+':''}${yld}%`:'-',parseFloat(yld)>=0?'sumG':'sumR'],
+        ['GANANCIA NETA',gNet!==0?`${gNet>=0?'+':''}$${gNet.toFixed(2)}`:'$0.00',gNet>=0?'sumG':'sumR'],
+      ];
+      const dataRows=records.map(r=>{
+        const cuota=r.cuota_jugada||r.cuota_1||0;
+        const monto=parseFloat(r.monto_apostado)||0;
+        const gan=r.resultado==="GANADA"?monto*(cuota-1):r.resultado==="PERDIDA"?-monto:r.resultado==="ANULADA"?0:null;
+        const ganStr=gan!==null?`${gan>=0?'+':''}$${gan.toFixed(2)}`:'-';
+        const catLabel=(CAT[r.categoria]||CAT.premium).label;
+        return `<Row ss:Height="22">
+          <Cell ss:StyleID="${sid(r.resultado)}"><Data ss:Type="String">${esc(r.fecha_partido||r.fecha_analisis||'-')}</Data></Cell>
+          <Cell ss:StyleID="${sidL(r.resultado)}"><Data ss:Type="String">${esc(r.partido||`${r.local||''} vs ${r.visitante||''}`)}</Data></Cell>
+          <Cell ss:StyleID="${sid(r.resultado)}"><Data ss:Type="String">${esc(catLabel)}</Data></Cell>
+          <Cell ss:StyleID="${sidL(r.resultado)}"><Data ss:Type="String">${esc(r.apuesta_jugada||r.mercado_1||'-')}</Data></Cell>
+          <Cell ss:StyleID="${sid(r.resultado)}"><Data ss:Type="String">${cuota?cuota.toFixed(2):'-'}</Data></Cell>
+          <Cell ss:StyleID="${sid(r.resultado)}"><Data ss:Type="String">${monto?`$${monto.toFixed(2)}`:'-'}</Data></Cell>
+          <Cell ss:StyleID="${sidB(r.resultado)}"><Data ss:Type="String">${esc(r.resultado||'PENDIENTE')}</Data></Cell>
+          <Cell ss:StyleID="${sidB(r.resultado)}"><Data ss:Type="String">${esc(ganStr)}</Data></Cell>
+        </Row>`;
+      }).join('\n');
+      const styles=`
+  <Style ss:ID="Default"><Font ss:FontName="Calibri" ss:Size="11"/></Style>
+  <Style ss:ID="title"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="20" ss:Color="#F59E0B"/><Interior ss:Color="#0A0E1A" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sub"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="9" ss:Color="#94A3B8"/><Interior ss:Color="#0A0E1A" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="gap"><Interior ss:Color="#0A0E1A" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sumLbl"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="9" ss:Color="#94A3B8"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sumV"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#F1F5F9"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sumG"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#10B981"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sumR"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#EF4444"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sumA"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#F59E0B"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="colH"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="11" ss:Color="#000000"/><Interior ss:Color="#F59E0B" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#92400E"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#92400E"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#92400E"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#92400E"/></Borders></Style>
+  <Style ss:ID="wC"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#065F46"/><Interior ss:Color="#D1FAE5" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#6EE7B7"/></Borders></Style>
+  <Style ss:ID="wL"><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#065F46"/><Interior ss:Color="#D1FAE5" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#6EE7B7"/></Borders></Style>
+  <Style ss:ID="wB"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="10" ss:Color="#065F46"/><Interior ss:Color="#D1FAE5" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#6EE7B7"/></Borders></Style>
+  <Style ss:ID="lC"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#7F1D1D"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FCA5A5"/></Borders></Style>
+  <Style ss:ID="lL"><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#7F1D1D"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FCA5A5"/></Borders></Style>
+  <Style ss:ID="lB"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="10" ss:Color="#7F1D1D"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FCA5A5"/></Borders></Style>
+  <Style ss:ID="aC"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Italic="1" ss:Size="10" ss:Color="#6B7280"/><Interior ss:Color="#E5E7EB" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D1D5DB"/></Borders></Style>
+  <Style ss:ID="aL"><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Calibri" ss:Italic="1" ss:Size="10" ss:Color="#6B7280"/><Interior ss:Color="#E5E7EB" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D1D5DB"/></Borders></Style>
+  <Style ss:ID="pC"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#92400E"/><Interior ss:Color="#FEF3C7" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FDE68A"/></Borders></Style>
+  <Style ss:ID="pL"><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#92400E"/><Interior ss:Color="#FEF3C7" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FDE68A"/></Borders></Style>
+  <Style ss:ID="foot"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Italic="1" ss:Size="9" ss:Color="#94A3B8"/><Interior ss:Color="#0A0E1A" ss:Pattern="Solid"/></Style>`;
+      const xml=`<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel">\n<Styles>${styles}</Styles>\n<Worksheet ss:Name="Apuestas BetIQ">\n<Table>\n  <Column ss:Width="100"/><Column ss:Width="190"/><Column ss:Width="90"/><Column ss:Width="160"/><Column ss:Width="55"/><Column ss:Width="75"/><Column ss:Width="80"/><Column ss:Width="90"/>\n  <Row ss:Height="42"><Cell ss:StyleID="title" ss:MergeAcross="7"><Data ss:Type="String">BetClaude IA - HISTORIAL DE APUESTAS</Data></Cell></Row>\n  <Row ss:Height="16"><Cell ss:StyleID="sub" ss:MergeAcross="7"><Data ss:Type="String">Exportado el ${esc(new Date().toLocaleString("es-CO"))} - betclaude.app - Analisis de apuestas con IA</Data></Cell></Row>\n  <Row ss:Height="8"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>\n  <Row ss:Height="20">${sumRows.map(([l])=>`<Cell ss:StyleID="sumLbl"><Data ss:Type="String">${esc(l)}</Data></Cell>`).join('')}</Row>\n  <Row ss:Height="30">${sumRows.map(([,v,s])=>`<Cell ss:StyleID="${s}"><Data ss:Type="String">${esc(v)}</Data></Cell>`).join('')}</Row>\n  <Row ss:Height="8"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>\n  <Row ss:Height="24">${['FECHA','PARTIDO','CATEGORIA','MERCADO JUGADO','CUOTA','MONTO ($)','RESULTADO','GANANCIA ($)'].map(h=>`<Cell ss:StyleID="colH"><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>\n  ${dataRows}\n  <Row ss:Height="8"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>\n  <Row ss:Height="18"><Cell ss:StyleID="foot" ss:MergeAcross="7"><Data ss:Type="String">Las apuestas son sugerencias basadas en analisis estadistico con IA. Juega con responsabilidad. BetClaude IA - betclaude.app</Data></Cell></Row>\n</Table>\n</Worksheet>\n</Workbook>`;
+      const blob=new Blob([xml],{type:'text/xml;charset=UTF-8'});
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement('a');
+      a.href=url; a.download=`BetIQ_${new Date().toLocaleDateString('es-CO').replace(/\//g,'-')}.xml`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+    } catch(e) { alert('Error: '+e.message); }
+    setExporting(false);
+  };
 
-  // Racha actual
-  let racha = 0, rachaType = "";
-  for (let i = 0; i < records.length; i++) {
-    if (records[i].resultado === "PENDIENTE") continue;
-    if (i === 0 || records[i].resultado === rachaType) { rachaType = records[i].resultado; racha++; }
-    else break;
-  }
+  // ── STATS ─────────────────────────────────────────────────────────
+  const won      = records.filter(r => r.resultado === "GANADA");
+  const lost     = records.filter(r => r.resultado === "PERDIDA");
+  const anuladas = records.filter(r => r.resultado === "ANULADA");
+  const closed   = [...won, ...lost];
+  const totalApostado = records.reduce((s,r)=>s+(parseFloat(r.monto_apostado)||0),0);
+  const gNet = records.reduce((s,r)=>{
+    const m=parseFloat(r.monto_apostado)||0,c=r.cuota_jugada||r.cuota_1||1;
+    if(r.resultado==="GANADA") return s+m*(c-1);
+    if(r.resultado==="PERDIDA") return s-m;
+    return s;
+  },0);
+  const winRate = closed.length>0?((won.length/closed.length)*100).toFixed(1):null;
+  const totalIngresos = won.reduce((s,r)=>{const m=parseFloat(r.monto_apostado)||0,c=r.cuota_jugada||r.cuota_1||1;return s+m*(c-1);},0);
+  const totalGastos   = lost.reduce((s,r)=>s+(parseFloat(r.monto_apostado)||0),0);
 
-  // Para gráfica de tendencia (últimas 10 cerradas)
-  const tendencia = closed.slice(0, 10).reverse().map((r, i) => ({
-    n: i + 1,
-    roi: parseFloat(r.resultado === "GANADA" ? (r.cuota - 1) : -1)
-  }));
-  let cumROI = 0;
-  const tendenciaAcum = tendencia.map(t => { cumROI += t.roi; return { n: t.n, roi: parseFloat(cumROI.toFixed(2)) }; });
+  // Agrupar por fecha
+  const filtrados = filtro==="TODOS" ? records : records.filter(r=>r.resultado===filtro);
+  const porFecha = {};
+  filtrados.forEach(r=>{
+    const key = r.fecha_partido || r.fecha_analisis || "Sin fecha";
+    if(!porFecha[key]) porFecha[key] = [];
+    porFecha[key].push(r);
+  });
+  const fechasOrdenadas = Object.keys(porFecha).sort((a,b)=>b.localeCompare(a));
 
-  const inputS = { background: C.card2, border: `1px solid ${C.border}`, borderRadius: 7, padding: "8px 12px", color: C.text, fontSize: 13, outline: "none", fontFamily: "inherit", width: "100%", boxSizing: "border-box" };
+  const inputS = { background:C.card2, border:`1px solid ${C.border}`, borderRadius:7, padding:"8px 12px", color:C.text, fontSize:13, outline:"none", fontFamily:"inherit", width:"100%", boxSizing:"border-box" };
 
-  if (!loaded) return <div style={{ textAlign: "center", color: C.muted, padding: 40 }}>Cargando historial...</div>;
+  if (!loaded) return <div style={{textAlign:"center",color:C.muted,padding:40}}>Cargando...</div>;
 
   return (
     <div>
-      {/* STATS OVERVIEW */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10, marginBottom: 20 }}>
-        {[
-          { l: "Apuestas totales", v: records.length, c: C.blue },
-          { l: "% de acierto", v: `${winRate}%`, c: parseFloat(winRate) >= 55 ? C.green : parseFloat(winRate) >= 45 ? C.accent : C.red },
-          { l: "ROI acumulado", v: `${roi > 0 ? "+" : ""}${roi}%`, c: parseFloat(roi) > 0 ? C.green : C.red },
-          { l: "Racha actual", v: racha > 0 ? `${racha}${rachaType === "GANADA" ? "✅" : "❌"}` : "—", c: rachaType === "GANADA" ? C.green : C.red },
-        ].map(({ l, v, c }) => (
-          <div key={l} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px", textAlign: "center" }}>
-            <div style={{ fontSize: 24, fontWeight: 900, color: c }}>{v}</div>
-            <div style={{ fontSize: 11, color: C.dim, marginTop: 4 }}>{l}</div>
+      {/* HEADER FINTECH — Balance + Ingresos + Gastos */}
+      <div style={{ borderRadius:16, overflow:"hidden", marginBottom:16, border:`1px solid ${C.border}` }}>
+        {/* Balance total */}
+        <div style={{ background:"linear-gradient(135deg,#0d2218,#0f3020,#162436)", padding:"20px 20px 16px" }}>
+          <div style={{ fontSize:11, color:C.muted, letterSpacing:".08em", marginBottom:4 }}>BALANCE TOTAL</div>
+          <div style={{ fontSize:36, fontWeight:900, color:gNet>=0?"#10B981":"#EF4444", letterSpacing:"-.02em" }}>
+            {gNet>=0?"+":""}{totalApostado>0?`$${gNet.toFixed(2)}`:"$0.00"}
           </div>
-        ))}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 20 }}>
-        {[
-          { l: "Ganadas", v: won.length, c: C.green },
-          { l: "Perdidas", v: lost.length, c: C.red },
-          { l: "Pendientes", v: pending.length, c: C.accent },
-        ].map(({ l, v, c }) => (
-          <div key={l} style={{ background: C.card2, borderRadius: 8, padding: "10px", textAlign: "center", border: `1px solid ${c}33` }}>
-            <div style={{ fontSize: 20, fontWeight: 800, color: c }}>{v}</div>
-            <div style={{ fontSize: 11, color: C.dim }}>{l}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* TENDENCIA */}
-      {tendenciaAcum.length > 1 && (
-        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px 18px", marginBottom: 20 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, marginBottom: 12, color: C.muted }}>📈 Tendencia ROI acumulado (últimas {tendenciaAcum.length} cerradas)</div>
-          <ResponsiveContainer width="100%" height={150}>
-            <LineChart data={tendenciaAcum} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
-              <XAxis dataKey="n" tick={{ fill: C.dim, fontSize: 10 }} axisLine={false} />
-              <YAxis tick={{ fill: C.dim, fontSize: 10 }} axisLine={false} />
-              <Tooltip contentStyle={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }} formatter={(v) => [`${v > 0 ? "+" : ""}${v} u.`, "ROI acum."]} />
-              <Line type="monotone" dataKey="roi" stroke={parseFloat(roi) >= 0 ? C.green : C.red} strokeWidth={2} dot={{ r: 3, fill: C.accent }} />
-            </LineChart>
-          </ResponsiveContainer>
+          <div style={{ fontSize:12, color:C.dim, marginTop:4 }}>{records.length} apuestas · {closed.length} cerradas{winRate?` · ${winRate}% acierto`:""}</div>
         </div>
-      )}
+        {/* Ingresos / Gastos */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:1, background:C.border }}>
+          <div style={{ background:"#052e16", padding:"12px 16px" }}>
+            <div style={{ fontSize:10, color:"#6EE7B7", letterSpacing:".06em", marginBottom:2 }}>INGRESOS</div>
+            <div style={{ fontSize:20, fontWeight:800, color:"#10B981" }}>+${totalIngresos.toFixed(2)}</div>
+            <div style={{ fontSize:10, color:"#34D399", marginTop:1 }}>{won.length} ganadas</div>
+          </div>
+          <div style={{ background:"#450a0a", padding:"12px 16px" }}>
+            <div style={{ fontSize:10, color:"#FCA5A5", letterSpacing:".06em", marginBottom:2 }}>GASTOS</div>
+            <div style={{ fontSize:20, fontWeight:800, color:"#EF4444" }}>-${totalGastos.toFixed(2)}</div>
+            <div style={{ fontSize:10, color:"#F87171", marginTop:1 }}>{lost.length} perdidas</div>
+          </div>
+        </div>
+        {/* Stats bar */}
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:1, background:C.border }}>
+          {[
+            ["TRANSACCIONES", records.length, C.blue],
+            ["ANULADAS",       anuladas.length, C.muted],
+            ["PENDIENTES",     records.filter(r=>r.resultado==="PENDIENTE").length, C.accent],
+          ].map(([l,v,c])=>(
+            <div key={l} style={{ background:C.card, padding:"10px", textAlign:"center" }}>
+              <div style={{ fontSize:16, fontWeight:800, color:c }}>{v}</div>
+              <div style={{ fontSize:9, color:C.dim, marginTop:2, letterSpacing:".05em" }}>{l}</div>
+            </div>
+          ))}
+        </div>
+      </div>
 
-      {/* BOTÓN AGREGAR */}
-      <button onClick={() => setShowAdd(!showAdd)} style={{
-        width: "100%", background: C.accent, color: "#000", border: "none", borderRadius: 8,
-        padding: "12px", fontWeight: 800, fontSize: 14, cursor: "pointer", marginBottom: 16
-      }}>
-        {showAdd ? "✕ Cancelar" : "+ Registrar nueva apuesta"}
-      </button>
+      {/* ACCIONES */}
+      <div style={{ display:"flex", gap:8, marginBottom:14 }}>
+        <button onClick={exportarExcel} disabled={exporting||records.length===0} style={{ flex:1, background:records.length===0?C.dim:"linear-gradient(135deg,#16a34a,#22c55e)", color:"#fff", border:"none", borderRadius:8, padding:"11px", fontWeight:800, fontSize:13, cursor:records.length===0?"not-allowed":"pointer" }}>
+          {exporting?"Exportando...":"📥 Exportar Excel"}
+        </button>
+        <button onClick={()=>setShowAdd(!showAdd)} style={{ flex:1, background:C.accent, color:"#000", border:"none", borderRadius:8, padding:"11px", fontWeight:800, fontSize:13, cursor:"pointer" }}>
+          {showAdd?"✕ Cancelar":"+ Manual"}
+        </button>
+      </div>
 
+      {/* FORM MANUAL */}
       {showAdd && (
-        <div style={{ background: C.card, border: `1px solid ${C.accent}44`, borderRadius: 12, padding: "18px", marginBottom: 16 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: C.accent, marginBottom: 14 }}>📝 Nueva apuesta</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
-            <div>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5 }}>Partido *</div>
-              <input style={inputS} value={form.partido} onChange={e => setForm(f => ({ ...f, partido: e.target.value }))} placeholder="Local vs Visitante" />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5 }}>Mercado</div>
-              <input style={inputS} value={form.mercado} onChange={e => setForm(f => ({ ...f, mercado: e.target.value }))} placeholder="Ej: Over 2.5 Goles" />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5 }}>Cuota *</div>
-              <input style={inputS} type="number" step="0.01" value={form.cuota} onChange={e => setForm(f => ({ ...f, cuota: e.target.value }))} placeholder="1.75" />
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: C.muted, marginBottom: 5 }}>Fecha</div>
-              <input style={inputS} value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} placeholder="DD/MM/YYYY" />
-            </div>
+        <div style={{ background:C.card, border:`1px solid ${C.accent}44`, borderRadius:12, padding:"16px", marginBottom:14 }}>
+          <div style={{ fontWeight:700, fontSize:13, color:C.accent, marginBottom:12 }}>Registro manual</div>
+          {/* Categoría */}
+          <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+            {CATEGORIAS.map(c=>(
+              <button key={c.id} onClick={()=>setForm(f=>({...f,categoria:c.id}))} style={{ flex:1, padding:"7px 4px", borderRadius:8, border:`1.5px solid ${form.categoria===c.id?c.color:C.border}`, background:form.categoria===c.id?c.bg:"transparent", cursor:"pointer", fontSize:11, fontWeight:700, color:form.categoria===c.id?c.color:C.muted }}>
+                {c.icon} {c.label}
+              </button>
+            ))}
           </div>
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: C.muted, marginBottom: 8 }}>Resultado inicial</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {["PENDIENTE", "GANADA", "PERDIDA"].map(r => (
-                <button key={r} onClick={() => setForm(f => ({ ...f, resultado: r }))} style={{
-                  flex: 1, padding: "8px", borderRadius: 7, border: `1px solid ${form.resultado === r ? (r === "GANADA" ? C.green : r === "PERDIDA" ? C.red : C.accent) : C.border}`,
-                  background: form.resultado === r ? (r === "GANADA" ? C.greenDim : r === "PERDIDA" ? C.redDim : C.accent + "22") : "transparent",
-                  color: r === "GANADA" ? C.green : r === "PERDIDA" ? C.red : C.accent, fontSize: 12, fontWeight: 700, cursor: "pointer"
-                }}>{r === "GANADA" ? "✅ GANADA" : r === "PERDIDA" ? "❌ PERDIDA" : "⏳ PENDIENTE"}</button>
-              ))}
-            </div>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:10 }}>
+            <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Partido *</div><input style={inputS} value={form.partido} onChange={e=>setForm(f=>({...f,partido:e.target.value}))} placeholder="Local vs Visitante"/></div>
+            <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Mercado</div><input style={inputS} value={form.mercado} onChange={e=>setForm(f=>({...f,mercado:e.target.value}))} placeholder="Over 2.5 Goles"/></div>
+            <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Cuota *</div><input style={inputS} type="number" step="0.01" value={form.cuota} onChange={e=>setForm(f=>({...f,cuota:e.target.value}))} placeholder="1.75"/></div>
+            <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Fecha</div><input style={inputS} value={form.fecha} onChange={e=>setForm(f=>({...f,fecha:e.target.value}))} placeholder="DD/MM/YYYY"/></div>
           </div>
-          <button onClick={addRecord} disabled={!form.partido || !form.cuota} style={{
-            width: "100%", background: C.green, color: "#000", border: "none", borderRadius: 8,
-            padding: "11px", fontWeight: 800, fontSize: 13, cursor: "pointer"
-          }}>Guardar apuesta</button>
+          <div style={{ display:"flex", gap:6, marginBottom:10 }}>
+            {["PENDIENTE","GANADA","PERDIDA","ANULADA"].map(res=>(
+              <button key={res} onClick={()=>setForm(f=>({...f,resultado:res}))} style={{ flex:1, padding:"6px 4px", borderRadius:6, border:`1px solid ${form.resultado===res?(res==="GANADA"?"#10B981":res==="PERDIDA"?"#EF4444":res==="ANULADA"?"#6B7280":C.accent):C.border}`, background:form.resultado===res?(res==="GANADA"?"#052e16":res==="PERDIDA"?"#450a0a":res==="ANULADA"?"#1f2937":C.accent+"22"):"transparent", color:res==="GANADA"?"#10B981":res==="PERDIDA"?"#EF4444":res==="ANULADA"?"#6B7280":C.accent, fontSize:10, fontWeight:700, cursor:"pointer" }}>
+                {res==="GANADA"?"✅":res==="PERDIDA"?"❌":res==="ANULADA"?"🚫":"⏳"} {res}
+              </button>
+            ))}
+          </div>
+          <button onClick={async()=>{
+            if(!form.partido||!form.cuota) return;
+            const cuota=parseFloat(form.cuota), monto=0;
+            const ganancia=form.resultado==="GANADA"?monto*(cuota-1):form.resultado==="PERDIDA"?-monto:0;
+            const newRec={id:Date.now(),partido:form.partido,mercado_1:form.mercado,apuesta_jugada:form.mercado,cuota_1:cuota,cuota_jugada:cuota,resultado:form.resultado,ganancia_unidades:ganancia,fecha_analisis:form.fecha||new Date().toLocaleDateString("es-CO"),fecha_partido:form.fecha||"",categoria:form.categoria||"premium"};
+            await save([newRec,...records]);
+            setForm({partido:"",mercado:"",cuota:"",resultado:"PENDIENTE",fecha:"",categoria:"premium"});
+            setShowAdd(false);
+          }} disabled={!form.partido||!form.cuota} style={{ width:"100%", background:"linear-gradient(135deg,#16a34a,#22c55e)", color:"#fff", border:"none", borderRadius:7, boxShadow:"0 4px 15px rgba(34,197,94,0.35)", padding:"10px", fontWeight:800, fontSize:13, cursor:"pointer" }}>
+            Guardar
+          </button>
         </div>
       )}
 
-      {/* LISTA */}
-      {records.length === 0
-        ? <div style={{ textAlign: "center", color: C.dim, padding: "40px 20px", background: C.card, borderRadius: 12, border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 32, marginBottom: 10 }}>📋</div>
-          <div style={{ fontSize: 14, color: C.muted }}>Sin apuestas registradas aún</div>
-          <div style={{ fontSize: 12, color: C.dim, marginTop: 6 }}>Genera un análisis y registra tu primera apuesta</div>
-        </div>
-        : records.map(r => {
-          const resColor = r.resultado === "GANADA" ? C.green : r.resultado === "PERDIDA" ? C.red : C.accent;
-          const resIcon = r.resultado === "GANADA" ? "✅" : r.resultado === "PERDIDA" ? "❌" : "⏳";
-          return (
-            <div key={r.id} style={{ background: C.card, border: `1px solid ${resColor}33`, borderRadius: 10, padding: "14px 16px", marginBottom: 8, display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ fontSize: 20 }}>{resIcon}</div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontWeight: 700, fontSize: 13, color: C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{r.partido}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>{r.mercado || "Sin mercado"} · Cuota <span style={{ color: C.accent, fontWeight: 700 }}>x{r.cuota?.toFixed(2)}</span> · {r.fecha}</div>
-              </div>
-              <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                {r.resultado === "PENDIENTE" && (
-                  <>
-                    <button onClick={() => updateResult(r.id, "GANADA")} style={{ background: C.greenDim, border: `1px solid ${C.green}`, color: C.green, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>✅ Ganó</button>
-                    <button onClick={() => updateResult(r.id, "PERDIDA")} style={{ background: C.redDim, border: `1px solid ${C.red}`, color: C.red, borderRadius: 6, padding: "4px 10px", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>❌ Perdió</button>
-                  </>
-                )}
-                <button onClick={() => deleteRecord(r.id)} style={{ background: "transparent", border: `1px solid ${C.border}`, color: C.dim, borderRadius: 6, padding: "4px 8px", fontSize: 11, cursor: "pointer" }}>🗑</button>
-              </div>
-            </div>
-          );
-        })
+      {/* FILTROS */}
+      <div style={{ display:"flex", gap:4, marginBottom:4, background:C.card, borderRadius:10, padding:4, border:`1px solid ${C.border}` }}>
+        {[["TODOS",`Todos (${records.length})`],["PENDIENTE","⏳"],["GANADA","✅"],["PERDIDA","❌"],["ANULADA","🚫"]].map(([k,l])=>(
+          <button key={k} onClick={()=>setFiltro(k)} style={{ flex:1, background:filtro===k?(k==="GANADA"?"linear-gradient(135deg,#16a34a,#22c55e)":k==="PERDIDA"?"#ef4444":k==="ANULADA"?"#6B7280":k==="PENDIENTE"?"linear-gradient(135deg,#d97706,#f59e0b)":"linear-gradient(135deg,#1d4ed8,#3b82f6)"):"transparent", color:filtro===k?"#fff":C.muted, border:"none", borderRadius:7, padding:"8px 4px", fontWeight:700, fontSize:11, cursor:"pointer" }}>{l}</button>
+        ))}
+      </div>
+
+      {/* LISTA AGRUPADA POR FECHA */}
+      {records.length===0
+        ? <div style={{ textAlign:"center", color:C.dim, padding:"40px 20px", background:C.card, borderRadius:12, border:`1px solid ${C.border}`, marginTop:8 }}>
+            <div style={{ fontSize:32, marginBottom:10 }}>📋</div>
+            <div style={{ fontSize:14, color:C.muted }}>Los análisis se guardan aquí automáticamente</div>
+          </div>
+        : <div style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:12, overflow:"hidden", marginTop:8 }}>
+            {fechasOrdenadas.length===0
+              ? <div style={{ padding:20, textAlign:"center", color:C.dim, fontSize:13 }}>Sin registros con este filtro</div>
+              : fechasOrdenadas.map(fecha=>{
+                  const grupo = porFecha[fecha];
+                  const ingresos = grupo.filter(r=>r.resultado==="GANADA").reduce((s,r)=>{const m=parseFloat(r.monto_apostado)||0,c=r.cuota_jugada||r.cuota_1||1;return s+m*(c-1);},0);
+                  const gastos   = grupo.filter(r=>r.resultado==="PERDIDA").reduce((s,r)=>s+(parseFloat(r.monto_apostado)||0),0);
+                  return (
+                    <div key={fecha}>
+                      {/* Cabecera de fecha */}
+                      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 16px", background:C.card2, borderBottom:`1px solid ${C.border}`, borderTop:`1px solid ${C.border}` }}>
+                        <span style={{ fontSize:12, fontWeight:700, color:C.muted }}>{fecha}</span>
+                        <div style={{ display:"flex", gap:12 }}>
+                          {gastos>0  && <span style={{ fontSize:12, fontWeight:700, color:"#EF4444" }}>-${gastos.toFixed(2)}</span>}
+                          {ingresos>0 && <span style={{ fontSize:12, fontWeight:700, color:"#10B981" }}>+${ingresos.toFixed(2)}</span>}
+                        </div>
+                      </div>
+                      {/* Transacciones del día */}
+                      {grupo.map(r=>(
+                        <TransaccionCard
+                          key={r.id} r={r}
+                          onResult={updateResult}
+                          onDelete={deleteRecord}
+                          records={records}
+                          save={save}
+                        />
+                      ))}
+                    </div>
+                  );
+                })
+            }
+          </div>
       }
     </div>
   );
 }
-
 // ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
 export default function BetIQProV3() {
   const [form, setForm] = useState({ local: "", visitante: "", liga: "", fecha: "", contexto: "" });
@@ -580,28 +801,64 @@ export default function BetIQProV3() {
       "🏥 Verificando lesionados y bajas específicas...",
       "📊 Analizando 8+ mercados de apuesta...",
       "⚖️ Calculando valor esperado (EV) por mercado...",
-      "🏆 Seleccionando los 3 mejores mercados...",
+      "🏆 Generando análisis final... (puede tardar hasta 60s)",
     ];
     let si = 0;
     setProgress(steps[0]);
-    const iv = setInterval(() => { si = Math.min(si + 1, steps.length - 1); setProgress(steps[si]); }, 3500);
+    // Avanza cada 6s; cuando llega al último paso se queda ahí con un contador
+    let extraSecs = 0;
+    const iv = setInterval(() => {
+      if (si < steps.length - 1) { si++; setProgress(steps[si]); }
+      else { extraSecs += 6; setProgress(`🏆 Generando análisis final... (${extraSecs}s)`); }
+    }, 6000);
 
-    const apiCall = async (system, messages, withSearch = false, maxTok = 4000) => {
-      const body = {
-        model: "claude-sonnet-4-20250514",
-        max_tokens: maxTok,
-        system,
-        messages,
+    const apiCall = async (system, messages, withSearch = false, maxTok = 4000, timeoutMs = 90000) => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+      const directCall = async () => {
+        const res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-20250514",
+            max_tokens: maxTok,
+            system,
+            messages,
+            ...(withSearch ? { tools: [{ type: "web_search_20250305", name: "web_search" }] } : {})
+          }),
+          signal: controller.signal,
+        });
+        return res.json();
       };
-      if (withSearch) body.tools = [{ type: "web_search_20250305", name: "web_search" }];
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (json.error) throw new Error(json.error.message || "API error");
-      return (json.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+
+      try {
+        let json;
+        try {
+          const proxyRes = await fetch("/api/analyze", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ system, messages, withSearch, maxTokens: maxTok }),
+            signal: controller.signal,
+          });
+          const text = await proxyRes.text();
+          if (text.trimStart().startsWith("<")) {
+            json = await directCall();
+          } else {
+            json = JSON.parse(text);
+          }
+        } catch (proxyErr) {
+          if (proxyErr.name === "AbortError") throw new Error("Tiempo de espera agotado (90s). Intenta de nuevo.");
+          json = await directCall();
+        }
+        clearTimeout(timer);
+        if (json.error) throw new Error(json.error.message || json.error || "API error");
+        return (json.content || []).filter(b => b.type === "text").map(b => b.text).join("\n");
+      } catch (e) {
+        clearTimeout(timer);
+        if (e.name === "AbortError") throw new Error("Tiempo de espera agotado (90s). Intenta de nuevo.");
+        throw e;
+      }
     };
 
     try {
@@ -623,7 +880,7 @@ Incluye nombres exactos de jugadores lesionados/suspendidos con sus posiciones.`
         3000
       );
 
-      // PASO 2 — JSON con delimitadores explícitos — max_tokens alto para no truncar
+      // PASO 2 — JSON con delimitadores explícitos — max_tokens suficiente sin exceder
       setProgress("⚖️ Calculando EV en 8+ mercados...");
       const jsonRaw = await apiCall(
         SYSTEM_PROMPT,
@@ -632,7 +889,7 @@ Incluye nombres exactos de jugadores lesionados/suspendidos con sus posiciones.`
           content: `Partido: ${form.local} vs ${form.visitante} | Liga: ${form.liga || "N/D"} | Fecha: ${form.fecha || "Próximos días"} | Contexto: ${form.contexto || "Ninguno"}
 
 DATOS REALES ENCONTRADOS EN LA BÚSQUEDA:
-${searchData}
+${searchData.slice(0, 3000)}
 
 INSTRUCCIÓN DE FORMATO — CRÍTICA:
 Escribe EXACTAMENTE esto y nada más:
@@ -642,10 +899,12 @@ Escribe EXACTAMENTE esto y nada más:
 
 No escribas NADA antes de ---JSON_START--- ni después de ---JSON_END---.
 IMPORTANTE: Omite los campos "post_telegram" y "post_whatsapp" del JSON — se generan automáticamente.
-Analiza exactamente 8 mercados: 1X2, Doble Oportunidad, BTTS, Más de 2.5 Goles, Menos de 2.5 Goles, Más de 1.5 Goles, Hándicap Asiático, y Córners o Tarjetas. Usa las cuotas reales de la búsqueda. Cuota mínima mercado #1: 1.40.`
+Analiza exactamente 8 mercados: 1X2, Doble Oportunidad, BTTS, Más de 2.5 Goles, Menos de 2.5 Goles, Más de 1.5 Goles, Hándicap Asiático, y Córners o Tarjetas. Usa las cuotas reales de la búsqueda. Cuota mínima mercado #1: 1.40.
+Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
         }],
         false,
-        8000  // suficiente para JSON completo sin truncar
+        6000,
+        100000
       );
 
       clearInterval(iv);
@@ -684,12 +943,58 @@ Analiza exactamente 8 mercados: 1X2, Doble Oportunidad, BTTS, Más de 2.5 Goles,
       const desc1 = t1.descripcion || parsed.top_apuesta?.descripcion || "—";
       const fuente1 = t1.cuota_fuente || parsed.top_apuesta?.cuota_fuente || "Estimada";
 
-      parsed.post_telegram = `🏆 *BETIQ PRO* — ANÁLISIS ÉLITE\n\n⚽ ${parsed.partido?.local} vs ${parsed.partido?.visitante}\n🏆 ${parsed.partido?.competicion || form.liga || "Fútbol"} | ${parsed.partido?.fecha || form.fecha}\n\n━━━━━━━━━━━━━━━━━━━━\n🥇 APUESTA #1 — MAYOR VALOR\n━━━━━━━━━━━━━━━━━━━━\n🎯 ${nombre1}: ${desc1}\n💰 Cuota: ${cuota1} (${fuente1})\n📊 Confianza: ${conf1}% | EV: +${ev1}%\n\n🥈 ALTERNATIVA #2\n🎯 ${t2.nombre || "—"}: ${t2.descripcion || "—"}\n💰 Cuota: ${(t2.cuota || 0).toFixed(2)} | Confianza: ${t2.nivel_confianza || "—"}%\n\n🥉 ALTERNATIVA #3\n🎯 ${t3.nombre || "—"}: ${t3.descripcion || "—"}\n💰 Cuota: ${(t3.cuota || 0).toFixed(2)} | Confianza: ${t3.nivel_confianza || "—"}%\n\n━━━━━━━━━━━━━━━━━━━━\n🔑 PUNTOS CLAVE\n━━━━━━━━━━━━━━━━━━━━\n${(parsed.puntos_clave || []).map(p => `• ${p}`).join("\n")}\n\n🏥 Bajas ${parsed.partido?.local}: ${bL}\n🏥 Bajas ${parsed.partido?.visitante}: ${bV}\n\n⚡ Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n⚠️ Solo sugerencia. Juega con responsabilidad.`;
+      parsed.post_telegram = `🏆 *BetClaude IA* — ANÁLISIS ÉLITE\n\n⚽ ${parsed.partido?.local} vs ${parsed.partido?.visitante}\n🏆 ${parsed.partido?.competicion || form.liga || "Fútbol"} | ${parsed.partido?.fecha || form.fecha}\n\n━━━━━━━━━━━━━━━━━━━━\n🥇 APUESTA #1 — MAYOR VALOR\n━━━━━━━━━━━━━━━━━━━━\n🎯 ${nombre1}: ${desc1}\n💰 Cuota: ${cuota1} (${fuente1})\n📊 Confianza: ${conf1}% | EV: +${ev1}%\n\n🥈 ALTERNATIVA #2\n🎯 ${t2.nombre || "—"}: ${t2.descripcion || "—"}\n💰 Cuota: ${(t2.cuota || 0).toFixed(2)} | Confianza: ${t2.nivel_confianza || "—"}%\n\n🥉 ALTERNATIVA #3\n🎯 ${t3.nombre || "—"}: ${t3.descripcion || "—"}\n💰 Cuota: ${(t3.cuota || 0).toFixed(2)} | Confianza: ${t3.nivel_confianza || "—"}%\n\n━━━━━━━━━━━━━━━━━━━━\n🔑 PUNTOS CLAVE\n━━━━━━━━━━━━━━━━━━━━\n${(parsed.puntos_clave || []).map(p => `• ${p}`).join("\n")}\n\n🏥 Bajas ${parsed.partido?.local}: ${bL}\n🏥 Bajas ${parsed.partido?.visitante}: ${bV}\n\n⚡ Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n⚠️ Solo sugerencia. Juega con responsabilidad.`;
 
-      parsed.post_whatsapp = `🏆 *BETIQ PRO*\n\n⚽ *${parsed.partido?.local} vs ${parsed.partido?.visitante}*\n📅 ${parsed.partido?.fecha || form.fecha} | 🏆 ${parsed.partido?.competicion || form.liga || "Fútbol"}\n\n─────────────────────\n🥇 *MEJOR APUESTA*\n─────────────────────\n🎯 *${nombre1}*\n📝 ${desc1}\n💰 Cuota: *${cuota1}* (${fuente1})\n✅ Confianza: *${conf1}%* | EV: *+${ev1}%*\n\n─────────────────────\n🥈 *ALTERNATIVAS*\n─────────────────────\n🎯 ${t2.nombre || "—"} — Cuota *${(t2.cuota || 0).toFixed(2)}*\n🎯 ${t3.nombre || "—"} — Cuota *${(t3.cuota || 0).toFixed(2)}*\n\n─────────────────────\n🔑 *PUNTOS CLAVE*\n─────────────────────\n${(parsed.puntos_clave || []).map((p, i) => `${i + 1}️⃣ ${p}`).join("\n")}\n\n🏥 *Bajas:*\n▪️ ${parsed.partido?.local}: ${bL}\n▪️ ${parsed.partido?.visitante}: ${bV}\n\n📊 Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n_⚠️ Solo sugerencia. Juega responsable._`;
+      parsed.post_whatsapp = `🏆 *BetClaude IA*\n\n⚽ *${parsed.partido?.local} vs ${parsed.partido?.visitante}*\n📅 ${parsed.partido?.fecha || form.fecha} | 🏆 ${parsed.partido?.competicion || form.liga || "Fútbol"}\n\n─────────────────────\n🥇 *MEJOR APUESTA*\n─────────────────────\n🎯 *${nombre1}*\n📝 ${desc1}\n💰 Cuota: *${cuota1}* (${fuente1})\n✅ Confianza: *${conf1}%* | EV: *+${ev1}%*\n\n─────────────────────\n🥈 *ALTERNATIVAS*\n─────────────────────\n🎯 ${t2.nombre || "—"} — Cuota *${(t2.cuota || 0).toFixed(2)}*\n🎯 ${t3.nombre || "—"} — Cuota *${(t3.cuota || 0).toFixed(2)}*\n\n─────────────────────\n🔑 *PUNTOS CLAVE*\n─────────────────────\n${(parsed.puntos_clave || []).map((p, i) => `${i + 1}️⃣ ${p}`).join("\n")}\n\n🏥 *Bajas:*\n▪️ ${parsed.partido?.local}: ${bL}\n▪️ ${parsed.partido?.visitante}: ${bV}\n\n📊 Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n_⚠️ Solo sugerencia. Juega responsable._`;
 
       setData(parsed);
       setTab("mercados");
+
+      // ── Auto-guardar análisis en historial ──────────────────────────
+      try {
+        let prev = [];
+        try {
+          const stored = await window.storage.get("betiq_historial");
+          if (stored?.value) prev = JSON.parse(stored.value);
+        } catch { prev = []; } // clave no existe aún — primera vez
+
+        const newRecord = {
+          id: Date.now(),
+          fecha_analisis: new Date().toLocaleDateString("es-CO"),
+          hora_analisis: new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }),
+          partido: `${parsed.partido?.local} vs ${parsed.partido?.visitante}`,
+          local: parsed.partido?.local || form.local,
+          visitante: parsed.partido?.visitante || form.visitante,
+          competicion: parsed.partido?.competicion || form.liga || "N/D",
+          fecha_partido: parsed.partido?.fecha || form.fecha || "N/D",
+          mercado_1: nombre1,
+          desc_1: desc1,
+          cuota_1: parseFloat(cuota1),
+          ev_1: parseFloat(ev1),
+          confianza_1: conf1,
+          fuente_1: fuente1,
+          mercado_2: t2.nombre || "—",
+          cuota_2: t2.cuota || 0,
+          ev_2: parseFloat(((t2.ev || 0) * 100).toFixed(1)),
+          mercado_3: t3.nombre || "—",
+          cuota_3: t3.cuota || 0,
+          ev_3: parseFloat(((t3.ev || 0) * 100).toFixed(1)),
+          prob_local: pr.victoria_local || 0,
+          prob_empate: pr.empate || 0,
+          prob_visitante: pr.victoria_visitante || 0,
+          bajas_local: bL,
+          bajas_visitante: bV,
+          resultado: "PENDIENTE",
+          apuesta_jugada: nombre1,
+          cuota_jugada: parseFloat(cuota1),
+          ganancia_unidades: null,
+        };
+
+        const updated = [newRecord, ...prev];
+        await window.storage.set("betiq_historial", JSON.stringify(updated));
+      } catch (e) {
+        console.warn("Auto-save historial falló:", e.message);
+      }
     } catch (e) {
       clearInterval(iv);
       setError("Error: " + e.message + " — Intenta de nuevo.");
@@ -710,22 +1015,64 @@ Analiza exactamente 8 mercados: 1X2, Doble Oportunidad, BTTS, Más de 2.5 Goles,
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','Segoe UI',sans-serif", paddingBottom: 60 }}>
 
       {/* HEADER */}
-      <div style={{ background: C.card, borderBottom: `1px solid ${C.border}`, padding: "18px 24px 14px" }}>
+      <div style={{ background: `linear-gradient(135deg, #0d1b2a 0%, #162436 60%, #1c2e44 100%)`, borderBottom: `1px solid ${C.border}`, padding: "18px 24px 14px" }}>
         <div style={{ maxWidth: 920, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 38, height: 38, background: C.accent, borderRadius: 10, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>⚽</div>
+              <div style={{ width: 42, height: 42, flexShrink: 0 }}>
+              <svg viewBox="0 0 228 260" width="42" height="42" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <radialGradient id="hs" cx="36%" cy="28%" r="72%">
+                    <stop offset="0%" stopColor="#ffffff"/>
+                    <stop offset="42%" stopColor="#d8d8d8"/>
+                    <stop offset="85%" stopColor="#607080"/>
+                    <stop offset="100%" stopColor="#2a3848"/>
+                  </radialGradient>
+                  <radialGradient id="hsh" cx="75%" cy="78%" r="52%">
+                    <stop offset="0%" stopColor="#000" stopOpacity="0.45"/>
+                    <stop offset="100%" stopColor="#000" stopOpacity="0"/>
+                  </radialGradient>
+                  <clipPath id="hb"><circle cx="114" cy="130" r="106"/></clipPath>
+                </defs>
+                <circle cx="114" cy="130" r="109" fill="none" stroke="#22c55e" strokeWidth="1.5" strokeDasharray="5,4" opacity="0.5"/>
+                <circle cx="114" cy="130" r="106" fill="url(#hs)"/>
+                <g clipPath="url(#hb)">
+                  <polygon points="114,108 135,122 128,148 100,148 93,122" fill="#111"/>
+                  <polygon points="114,24 156,44 150,72 114,82 78,72 72,44" fill="#111"/>
+                  <polygon points="158,48 210,72 218,114 196,140 168,132 156,86" fill="#111"/>
+                  <polygon points="196,156 218,196 204,238 168,246 140,220 148,178" fill="#111"/>
+                  <polygon points="88,178 80,220 42,246 10,218 26,180 60,168" fill="#111"/>
+                  <polygon points="72,44 56,86 28,132 10,114 18,72 70,48" fill="#111"/>
+                </g>
+                <g clipPath="url(#hb)" stroke="#222" strokeWidth="2.2" fill="none">
+                  <polygon points="114,108 135,122 128,148 100,148 93,122"/>
+                  <line x1="114" y1="108" x2="150" y2="72"/><line x1="114" y1="108" x2="78" y2="72"/>
+                  <line x1="135" y1="122" x2="168" y2="132"/><line x1="135" y1="122" x2="156" y2="86"/>
+                  <line x1="128" y1="148" x2="148" y2="178"/><line x1="100" y1="148" x2="80" y2="178"/>
+                  <line x1="93" y1="122" x2="56" y2="86"/><line x1="150" y1="72" x2="156" y2="86"/>
+                  <line x1="78" y1="72" x2="56" y2="86"/>
+                </g>
+                <g clipPath="url(#hb)" stroke="#22c55e" strokeWidth="1.2" fill="none" opacity="0.5">
+                  <ellipse cx="114" cy="130" rx="106" ry="22"/>
+                  <ellipse cx="114" cy="130" rx="22" ry="106"/>
+                </g>
+                <circle cx="114" cy="130" r="106" fill="url(#hsh)"/>
+                <circle cx="114" cy="24" r="5" fill="#4ade80" opacity="0.9"/>
+                <ellipse cx="80" cy="82" rx="28" ry="18" fill="white" opacity="0.28"/>
+              </svg>
+            </div>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-.01em" }}>BETIQ <span style={{ color: C.accent }}>PRO</span> <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>v3</span></div>
-                <div style={{ fontSize: 10, color: C.dim, letterSpacing: ".08em" }}>MULTI-MERCADO · CUOTAS REALES · HISTORIAL</div>
+                <div style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-.01em" }}>Bet<span style={{ color: C.accent }}>Claude</span> <span style={{ color: C.green, fontSize:18 }}>IA</span> <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>v3</span></div>
+                <div style={{ fontSize: 10, color: C.dim, letterSpacing: ".08em" }}>SPORTS BETTING INTELLIGENCE · IA</div>
               </div>
             </div>
             <div style={{ display: "flex", gap: 6 }}>
               {[["analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
                 <button key={k} onClick={() => setMainTab(k)} style={{
-                  background: mainTab === k ? C.accent : "transparent",
-                  color: mainTab === k ? "#000" : C.muted,
-                  border: `1px solid ${mainTab === k ? C.accent : C.border}`,
+                  background: mainTab === k ? "linear-gradient(135deg,#16a34a,#22c55e)" : "transparent",
+                  color: mainTab === k ? "#fff" : C.muted,
+                  border: `1px solid ${mainTab === k ? "#22c55e" : C.border}`,
+                  boxShadow: mainTab === k ? "0 2px 12px rgba(34,197,94,0.3)" : "none",
                   borderRadius: 8, padding: "7px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer"
                 }}>{l}</button>
               ))}
@@ -766,8 +1113,9 @@ Analiza exactamente 8 mercados: 1X2, Doble Oportunidad, BTTS, Más de 2.5 Goles,
                 <textarea style={{ ...inputS, height: 65, resize: "vertical", lineHeight: 1.5 }} value={form.contexto} onChange={e => setForm(f => ({ ...f, contexto: e.target.value }))} placeholder="Ej: Partido de vuelta, local necesita ganar, sin estadio propio, etc." />
               </div>
               <button onClick={analyze} disabled={loading || !form.local || !form.visitante} style={{
-                width: "100%", background: loading ? C.dim : C.accent, color: "#000", border: "none", borderRadius: 10,
-                padding: "13px", fontWeight: 800, fontSize: 15, cursor: loading ? "not-allowed" : "pointer"
+                width: "100%", background: loading ? C.dim : "linear-gradient(135deg,#16a34a,#22c55e)", color: "#fff", border: "none", borderRadius: 10,
+                padding: "14px", fontWeight: 800, fontSize: 15, cursor: loading ? "not-allowed" : "pointer",
+                boxShadow: loading ? "none" : "0 4px 20px rgba(34,197,94,0.45)", letterSpacing: ".03em"
               }}>
                 {loading ? "Analizando..." : "⚡ ANALIZAR 8+ MERCADOS CON IA"}
               </button>
@@ -786,9 +1134,9 @@ Analiza exactamente 8 mercados: 1X2, Doble Oportunidad, BTTS, Más de 2.5 Goles,
             {data && (
               <>
                 {/* VEREDICTO PRINCIPAL */}
-                <div style={{ background: `linear-gradient(135deg, #0a1628, #071a12)`, border: `2px solid ${C.green}44`, borderRadius: 14, padding: "22px", marginBottom: 20 }}>
+                <div style={{ background: `linear-gradient(135deg, #0d2218, #0f2d1a, #122d20)`, border: `2px solid ${C.green}44`, borderRadius: 14, padding: "22px", marginBottom: 20 }}>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 12 }}>
-                    <Badge color={C.green}>🏆 MEJOR APUESTA</Badge>
+                    <Badge color={C.accent}>🏆 MEJOR APUESTA</Badge>
                     <RiskBadge risk={data.top_apuesta?.nivel_riesgo} />
                     <Badge color={data.top_apuesta?.cuota_fuente?.includes("Bet365") ? C.blue : C.muted}>{data.top_apuesta?.cuota_fuente}</Badge>
                   </div>
@@ -826,7 +1174,7 @@ Analiza exactamente 8 mercados: 1X2, Doble Oportunidad, BTTS, Más de 2.5 Goles,
                   {[["mercados", "📌 Mercados"], ["factores", "⚖️ Factores"], ["bajas", "🏥 Bajas"], ["graficas", "📊 Gráficas"], ["post", "📱 Post"]].map(([k, l]) => (
                     <button key={k} onClick={() => setTab(k)} style={{
                       flex: 1, background: tab === k ? C.accent : "transparent",
-                      color: tab === k ? "#000" : C.muted,
+                      color: tab === k ? "#fff" : C.muted,
                       border: "none", borderRadius: 7, padding: "8px 4px",
                       fontWeight: tab === k ? 800 : 500, fontSize: 12, cursor: "pointer"
                     }}>{l}</button>
@@ -1020,7 +1368,7 @@ Analiza exactamente 8 mercados: 1X2, Doble Oportunidad, BTTS, Más de 2.5 Goles,
                     <div style={{ display: "flex", gap: 4, marginBottom: 16, background: C.card, borderRadius: 8, padding: 4, border: `1px solid ${C.border}` }}>
                       {[["telegram", "📱 Telegram"], ["whatsapp", "💬 WhatsApp"]].map(([k, l]) => (
                         <button key={k} onClick={() => setPostMode(k)} style={{
-                          flex: 1, background: postMode === k ? (k === "telegram" ? "#2196F3" : "#25D366") : "transparent",
+                          flex: 1, background: postMode === k ? (k === "telegram" ? "linear-gradient(135deg,#1565c0,#2196F3)" : "linear-gradient(135deg,#1a8a45,#25D366)") : "transparent",
                           color: postMode === k ? "#fff" : C.muted, border: "none", borderRadius: 6,
                           padding: "8px", fontWeight: 700, fontSize: 13, cursor: "pointer"
                         }}>{l}</button>
