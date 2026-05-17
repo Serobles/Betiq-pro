@@ -972,8 +972,8 @@ ${searchData.slice(0, 1200)}
 FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto extra. Omite post_telegram y post_whatsapp. Analiza 8 mercados. Cuota mínima #1: 1.40. Sé conciso.`
         }],
         false,
-        2500,
-        90000
+        4000,
+        120000
       );
 
       clearInterval(iv);
