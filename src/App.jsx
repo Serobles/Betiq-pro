@@ -34,31 +34,16 @@ const MERCADOS_ICONS = {
   "HT/FT": "📊"
 };
 
-const SYSTEM_PROMPT = `Analista de apuestas. Responde SOLO con el JSON entre los marcadores. Prohibido texto fuera de ellos.
+const SYSTEM_PROMPT = `Eres un analista de apuestas deportivas. Analiza el partido y devuelve SOLO el bloque JSON exacto.
 
+REGLA ABSOLUTA: Tu respuesta debe empezar con ---JSON_START--- y terminar con ---JSON_END---. Nada mas.
+
+El JSON tiene exactamente esta estructura (reemplaza los valores de ejemplo con datos reales del partido):
 ---JSON_START---
-{
-  "partido":{"local":"Arsenal","visitante":"Burnley","competicion":"Premier League","fecha":"19/05/2026","estadio":"Emirates Stadium"},
-  "mercados_analizados":[
-    {"nombre":"Handicap Asiatico Arsenal -2.5","descripcion":"Arsenal gana por 3 o mas goles","cuota":1.78,"cuota_fuente":"Bet365","prob_real":62,"prob_implicita":56,"ev":0.10,"nivel_confianza":68,"recomendado":true,"ranking":1,"razon":"EV positivo por diferencia de nivel"},
-    {"nombre":"Over 3.5 Goles","descripcion":"El partido termina con 4 o mas goles","cuota":1.95,"cuota_fuente":"Bet365","prob_real":55,"prob_implicita":51,"ev":0.07,"nivel_confianza":62,"recomendado":true,"ranking":2,"razon":"Arsenal promedia muchos goles en casa"},
-    {"nombre":"Arsenal Gana a Cero","descripcion":"Arsenal gana sin recibir goles","cuota":2.10,"cuota_fuente":"Bet365","prob_real":50,"prob_implicita":48,"ev":0.05,"nivel_confianza":58,"recomendado":false,"ranking":3,"razon":"Burnley anotador limitado fuera"},
-    {"nombre":"1X2 Victoria Local","descripcion":"Arsenal gana el partido","cuota":1.09,"cuota_fuente":"Bet365","prob_real":92,"prob_implicita":92,"ev":0.00,"nivel_confianza":90,"recomendado":false,"ranking":4,"razon":"Sin valor por cuota baja"},
-    {"nombre":"BTTS No","descripcion":"Al menos un equipo no anota","cuota":1.65,"cuota_fuente":"Bet365","prob_real":60,"prob_implicita":61,"ev":-0.01,"nivel_confianza":60,"recomendado":false,"ranking":5,"razon":"Burnley debil en ataque"},
-    {"nombre":"Over 2.5 Goles","descripcion":"El partido termina con 3 o mas goles","cuota":1.40,"cuota_fuente":"Bet365","prob_real":72,"prob_implicita":71,"ev":0.01,"nivel_confianza":70,"recomendado":false,"ranking":6,"razon":"Arsenal atacante pero cuota baja"},
-    {"nombre":"Doble Oportunidad 1X","descripcion":"Arsenal gana o empata","cuota":1.03,"cuota_fuente":"Bet365","prob_real":97,"prob_implicita":97,"ev":0.00,"nivel_confianza":97,"recomendado":false,"ranking":7,"razon":"Sin valor"},
-    {"nombre":"Corners Arsenal mas de 6.5","descripcion":"Arsenal saca mas de 6 corners","cuota":1.85,"cuota_fuente":"Estimada","prob_real":55,"prob_implicita":54,"ev":0.02,"nivel_confianza":55,"recomendado":false,"ranking":8,"razon":"Arsenal domina en casa"}
-  ],
-  "top_apuesta":{"mercado":"Handicap Asiatico Arsenal -2.5","descripcion":"Arsenal gana por 3 o mas goles","cuota":1.78,"cuota_fuente":"Bet365","prob_real":62,"prob_implicita":56,"ev":0.10,"nivel_confianza":68,"nivel_riesgo":"MEDIO","razon_ejecutiva":"Arsenal es amplio favorito en casa contra Burnley. La diferencia de calidad sugiere victoria amplia con EV positivo real."},
-  "probabilidades_1x2":{"victoria_local":85,"empate":10,"victoria_visitante":5},
-  "bajas":{"local":[{"nombre":"Bukayo Saka","posicion":"EXT","es_titular":true}],"visitante":[]},
-  "factores":{"forma_local":85,"forma_visitante":30,"presion_local":60,"motivacion_local":80,"motivacion_visitante":40,"cansancio_local":20,"cansancio_visitante":50},
-  "puntos_clave":["Arsenal invicto en casa en las ultimas 10 jornadas","Burnley sin victorias fuera en la segunda vuelta","Diferencia de 50 puntos en tabla"],
-  "analisis_general":"Arsenal domina con autoridad en casa. Burnley no tiene recursos para competir al mismo nivel. La mejor apuesta es la victoria amplia del local."
-}
+{"partido":{"local":"EQUIPO_LOCAL","visitante":"EQUIPO_VISITANTE","competicion":"LIGA","fecha":"FECHA","estadio":"ESTADIO"},"mercados_analizados":[{"nombre":"1X2 Victoria Local","descripcion":"gana el equipo local","cuota":1.45,"cuota_fuente":"Bet365","prob_real":72,"prob_implicita":69,"ev":0.04,"nivel_confianza":70,"recomendado":false,"ranking":4,"razon":"cuota sin valor suficiente"},{"nombre":"Doble Oportunidad 1X","descripcion":"local gana o empata","cuota":1.20,"cuota_fuente":"Bet365","prob_real":85,"prob_implicita":83,"ev":0.02,"nivel_confianza":82,"recomendado":false,"ranking":5,"razon":"sin valor por cuota baja"},{"nombre":"BTTS Si","descripcion":"ambos equipos marcan","cuota":1.75,"cuota_fuente":"Bet365","prob_real":60,"prob_implicita":57,"ev":0.05,"nivel_confianza":60,"recomendado":false,"ranking":6,"razon":"valor moderado"},{"nombre":"Mas de 2.5 Goles","descripcion":"partido termina con 3 o mas goles","cuota":1.65,"cuota_fuente":"Bet365","prob_real":65,"prob_implicita":61,"ev":0.07,"nivel_confianza":63,"recomendado":false,"ranking":7,"razon":"buen promedio goles"},{"nombre":"Menos de 2.5 Goles","descripcion":"partido termina con 2 o menos goles","cuota":2.10,"cuota_fuente":"Bet365","prob_real":35,"prob_implicita":48,"ev":-0.27,"nivel_confianza":35,"recomendado":false,"ranking":8,"razon":"sin valor"},{"nombre":"Mas de 1.5 Goles","descripcion":"partido termina con 2 o mas goles","cuota":1.25,"cuota_fuente":"Bet365","prob_real":82,"prob_implicita":80,"ev":0.03,"nivel_confianza":80,"recomendado":false,"ranking":3,"razon":"alta probabilidad cuota baja"},{"nombre":"Handicap Asiatico -1.5","descripcion":"equipo local gana por 2 o mas","cuota":1.90,"cuota_fuente":"Bet365","prob_real":58,"prob_implicita":53,"ev":0.10,"nivel_confianza":65,"recomendado":true,"ranking":2,"razon":"buen valor por diferencia nivel"},{"nombre":"Corners mas de 9.5","descripcion":"mas de 9 corners en el partido","cuota":1.85,"cuota_fuente":"Estimada","prob_real":62,"prob_implicita":54,"ev":0.15,"nivel_confianza":68,"recomendado":true,"ranking":1,"razon":"mayor valor esperado del partido"}],"top_apuesta":{"mercado":"Corners mas de 9.5","descripcion":"mas de 9 corners en el partido","cuota":1.85,"cuota_fuente":"Estimada","prob_real":62,"prob_implicita":54,"ev":0.15,"nivel_confianza":68,"nivel_riesgo":"MEDIO","razon_ejecutiva":"Este mercado ofrece el mayor valor esperado del partido con probabilidad real superior a la implicita en la cuota."},"probabilidades_1x2":{"victoria_local":55,"empate":25,"victoria_visitante":20},"bajas":{"local":[{"nombre":"Jugador Ejemplo","posicion":"DC","es_titular":true}],"visitante":[]},"factores":{"forma_local":70,"forma_visitante":40,"presion_local":60,"motivacion_local":75,"motivacion_visitante":50,"cansancio_local":25,"cansancio_visitante":35},"puntos_clave":["El equipo local lleva 8 partidos invicto en casa","El visitante no gana fuera desde hace 5 jornadas","Diferencia de 20 puntos en la tabla"],"analisis_general":"El equipo local es favorito claro. El mercado de corners ofrece el mejor valor del encuentro."}
 ---JSON_END---
 
-INSTRUCCIONES: Rellena el JSON anterior con datos REALES del partido indicado. Manten la estructura exacta. Los campos de texto solo letras, numeros, espacios y puntos. PROHIBIDO usar comillas dobles dentro de valores de texto.`;
+INSTRUCCION FINAL: Copia exactamente esa estructura JSON pero con los datos REALES del partido. No uses comillas dobles dentro de los valores de texto. Usa solo letras, numeros, espacios y puntos en los campos de texto.`;
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
 
