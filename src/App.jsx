@@ -58,9 +58,7 @@ const SYSTEM_PROMPT = `Analista de apuestas. Responde SOLO con el JSON entre los
 }
 ---JSON_END---
 
-INSTRUCCIONES: Rellena el JSON anterior con datos REALES del partido indicado. Mantén la estructura exacta. Los campos de texto solo letras, numeros, espacios y puntos. PROHIBIDO usar comillas dobles dentro de valores de texto.`;`
-
-const PIE_COLORS;
+INSTRUCCIONES: Rellena el JSON anterior con datos REALES del partido indicado. Manten la estructura exacta. Los campos de texto solo letras, numeros, espacios y puntos. PROHIBIDO usar comillas dobles dentro de valores de texto.`;
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
 
