@@ -761,12 +761,14 @@ Responde en máximo 500 palabras con cuotas, lesionados y forma reciente.`
           role: "user",
           content: `Partido: ${form.local} vs ${form.visitante} | Fecha: ${form.fecha || "Próximos días"}
 
-DATOS REALES ENCONTRADOS EN LA BÚSQUEDA:
+DATOS REALES DE API-FOOTBALL:
 ${searchData.slice(0, 1200)}
 
-FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto extra. Omite post_telegram y post_whatsapp. Analiza 8 mercados. Cuota mínima #1: 1.40. Sé conciso.`
+IMPORTANTE: Antes de generar el JSON, busca en internet las noticias mas recientes de bajas, lesionados y convocatoria de ambos equipos para el partido. Busca: "${form.local} bajas lesionados 2026" y "${form.visitante} bajas lesionados 2026". Complementa los datos de API-Football con lo que encuentres en web.
+
+FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto extra. Analiza 8 mercados. Cuota minima #1: 1.40.`
         }],
-        false,
+        true,
         4000,
         120000
       );
