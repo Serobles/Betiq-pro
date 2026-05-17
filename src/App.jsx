@@ -246,8 +246,8 @@ RESPONDE ÚNICAMENTE CON ESTE JSON EXACTO
     "corners_promedio_partido": 10.7,
     "tarjetas_promedio_partido": 3.7
   },
-  "post_telegram": "🏆 *BetClaude IA* — ANÁLISIS ÉLITE\\n\\n⚽ [Local] vs [Visitante]\\n🏆 [Competición] | [Fecha]\\n\\n━━━━━━━━━━━━━━━━━━━━\\n🥇 APUESTA #1 — MAYOR VALOR\\n━━━━━━━━━━━━━━━━━━━━\\n🎯 [Mercado]: [Descripción]\\n💰 Cuota: [X.XX] ([Fuente])\\n📊 Confianza: [X]% | EV: +[Y]%\\n\\n🥈 ALTERNATIVA #2\\n🎯 [Mercado 2]: [Descripción]\\n💰 Cuota: [X.XX] | Confianza: [X]%\\n\\n🥉 ALTERNATIVA #3\\n🎯 [Mercado 3]: [Descripción]\\n💰 Cuota: [X.XX] | Confianza: [X]%\\n\\n━━━━━━━━━━━━━━━━━━━━\\n🔑 PUNTOS CLAVE\\n━━━━━━━━━━━━━━━━━━━━\\n• [Punto con jugador específico]\\n• [Estadística específica]\\n• [Contexto relevante]\\n\\n🏥 Bajas: [Jugador] ([pos.]) — [estado]\\n\\n⚡ Local [X]% | Empate [X]% | Visit. [X]%\\n⚠️ Solo sugerencia. Juega responsable.",
-  "post_whatsapp": "🏆 *BetClaude IA*\\n\\n⚽ *[Local] vs [Visitante]*\\n📅 [Fecha] | 🏆 [Competición]\\n\\n─────────────────────\\n🥇 *MEJOR APUESTA*\\n─────────────────────\\n🎯 *[Mercado]*\\n📝 [Descripción]\\n💰 Cuota: *[X.XX]* ([Fuente])\\n✅ Confianza: *[X]%* | EV: *+[Y]%*\\n\\n─────────────────────\\n🥈 *ALTERNATIVA*\\n─────────────────────\\n🎯 [Mercado 2] — Cuota *[X.XX]*\\n🎯 [Mercado 3] — Cuota *[X.XX]*\\n\\n─────────────────────\\n🔑 *PUNTOS CLAVE*\\n─────────────────────\\n1️⃣ [Jugador específico + situación]\\n2️⃣ [Estadística específica]\\n3️⃣ [Contexto de valor]\\n\\n🏥 *Bajas:* [Jugador] ([pos.]) — [estado]\\n\\n📊 Local [X]% | Empate [X]% | Visit. [X]%\\n_⚠️ Solo sugerencia. Juega responsable._"
+  "post_telegram": "🏆 *BetScore IA* — ANÁLISIS ÉLITE\\n\\n⚽ [Local] vs [Visitante]\\n🏆 [Competición] | [Fecha]\\n\\n━━━━━━━━━━━━━━━━━━━━\\n🥇 APUESTA #1 — MAYOR VALOR\\n━━━━━━━━━━━━━━━━━━━━\\n🎯 [Mercado]: [Descripción]\\n💰 Cuota: [X.XX] ([Fuente])\\n📊 Confianza: [X]% | EV: +[Y]%\\n\\n🥈 ALTERNATIVA #2\\n🎯 [Mercado 2]: [Descripción]\\n💰 Cuota: [X.XX] | Confianza: [X]%\\n\\n🥉 ALTERNATIVA #3\\n🎯 [Mercado 3]: [Descripción]\\n💰 Cuota: [X.XX] | Confianza: [X]%\\n\\n━━━━━━━━━━━━━━━━━━━━\\n🔑 PUNTOS CLAVE\\n━━━━━━━━━━━━━━━━━━━━\\n• [Punto con jugador específico]\\n• [Estadística específica]\\n• [Contexto relevante]\\n\\n🏥 Bajas: [Jugador] ([pos.]) — [estado]\\n\\n⚡ Local [X]% | Empate [X]% | Visit. [X]%\\n⚠️ Solo sugerencia. Juega responsable.",
+  "post_whatsapp": "🏆 *BetScore IA*\\n\\n⚽ *[Local] vs [Visitante]*\\n📅 [Fecha] | 🏆 [Competición]\\n\\n─────────────────────\\n🥇 *MEJOR APUESTA*\\n─────────────────────\\n🎯 *[Mercado]*\\n📝 [Descripción]\\n💰 Cuota: *[X.XX]* ([Fuente])\\n✅ Confianza: *[X]%* | EV: *+[Y]%*\\n\\n─────────────────────\\n🥈 *ALTERNATIVA*\\n─────────────────────\\n🎯 [Mercado 2] — Cuota *[X.XX]*\\n🎯 [Mercado 3] — Cuota *[X.XX]*\\n\\n─────────────────────\\n🔑 *PUNTOS CLAVE*\\n─────────────────────\\n1️⃣ [Jugador específico + situación]\\n2️⃣ [Estadística específica]\\n3️⃣ [Contexto de valor]\\n\\n🏥 *Bajas:* [Jugador] ([pos.]) — [estado]\\n\\n📊 Local [X]% | Empate [X]% | Visit. [X]%\\n_⚠️ Solo sugerencia. Juega responsable._"
 }`;
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
@@ -504,7 +504,7 @@ function Historial() {
 
   useEffect(() => {
     const load = async () => {
-      try { const r=await window.storage.get("betiq_historial"); if(r?.value) setRecords(JSON.parse(r.value)); }
+      try { const r=await window.storage.get("betscore_historial"); if(r?.value) setRecords(JSON.parse(r.value)); }
       catch { setRecords([]); }
       setLoaded(true);
     };
@@ -512,7 +512,7 @@ function Historial() {
   }, []);
 
   const save = async (newRecs) => {
-    try { await window.storage.set("betiq_historial", JSON.stringify(newRecs)); } catch {}
+    try { await window.storage.set("betscore_historial", JSON.stringify(newRecs)); } catch {}
     setRecords(newRecs);
   };
 
@@ -583,18 +583,22 @@ function Historial() {
       }).join('\n');
       const styles=`
   <Style ss:ID="Default"><Font ss:FontName="Calibri" ss:Size="11"/></Style>
-  <Style ss:ID="title"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="20" ss:Color="#F59E0B"/><Interior ss:Color="#0A0E1A" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="sub"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="9" ss:Color="#94A3B8"/><Interior ss:Color="#0A0E1A" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="gap"><Interior ss:Color="#0A0E1A" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="sumLbl"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="9" ss:Color="#94A3B8"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="sumV"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#F1F5F9"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="sumG"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#10B981"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="sumR"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#EF4444"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="sumA"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#F59E0B"/><Interior ss:Color="#111827" ss:Pattern="Solid"/></Style>
-  <Style ss:ID="colH"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="11" ss:Color="#000000"/><Interior ss:Color="#F59E0B" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#92400E"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#92400E"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#92400E"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#92400E"/></Borders></Style>
-  <Style ss:ID="wC"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#065F46"/><Interior ss:Color="#D1FAE5" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#6EE7B7"/></Borders></Style>
-  <Style ss:ID="wL"><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#065F46"/><Interior ss:Color="#D1FAE5" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#6EE7B7"/></Borders></Style>
-  <Style ss:ID="wB"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="10" ss:Color="#065F46"/><Interior ss:Color="#D1FAE5" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#6EE7B7"/></Borders></Style>
+  <Style ss:ID="title"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="22" ss:Color="#22C55E"/><Interior ss:Color="#0D1B2A" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="titleBall"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="32" ss:Color="#22C55E"/><Interior ss:Color="#0D1B2A" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="titleBet"><Alignment ss:Horizontal="Right" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="26" ss:Color="#E2F0FB"/><Interior ss:Color="#0D1B2A" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="titleTag"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="8" ss:Color="#22C55E"/><Interior ss:Color="#162436" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sub"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="9" ss:Color="#7EB8D4"/><Interior ss:Color="#0D1B2A" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="tagline"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="9" ss:Color="#22C55E"/><Interior ss:Color="#162436" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="gap"><Interior ss:Color="#0D1B2A" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sumLbl"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="9" ss:Color="#7EB8D4"/><Interior ss:Color="#162436" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#2A4060"/></Borders></Style>
+  <Style ss:ID="sumV"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#E2F0FB"/><Interior ss:Color="#162436" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sumG"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#4ADE80"/><Interior ss:Color="#162436" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sumR"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#F87171"/><Interior ss:Color="#162436" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="sumA"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="14" ss:Color="#22C55E"/><Interior ss:Color="#162436" ss:Pattern="Solid"/></Style>
+  <Style ss:ID="colH"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="11" ss:Color="#0D1B2A"/><Interior ss:Color="#22C55E" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="2" ss:Color="#16A34A"/><Border ss:Position="Left" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#16A34A"/><Border ss:Position="Right" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#16A34A"/><Border ss:Position="Top" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#16A34A"/></Borders></Style>
+  <Style ss:ID="wC"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#065F46"/><Interior ss:Color="#DCFCE7" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#4ADE80"/></Borders></Style>
+  <Style ss:ID="wL"><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#065F46"/><Interior ss:Color="#DCFCE7" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#4ADE80"/></Borders></Style>
+  <Style ss:ID="wB"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="10" ss:Color="#14532D"/><Interior ss:Color="#DCFCE7" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#4ADE80"/></Borders></Style>
   <Style ss:ID="lC"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#7F1D1D"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FCA5A5"/></Borders></Style>
   <Style ss:ID="lL"><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#7F1D1D"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FCA5A5"/></Borders></Style>
   <Style ss:ID="lB"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Bold="1" ss:Size="10" ss:Color="#7F1D1D"/><Interior ss:Color="#FEE2E2" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FCA5A5"/></Borders></Style>
@@ -602,8 +606,12 @@ function Historial() {
   <Style ss:ID="aL"><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Calibri" ss:Italic="1" ss:Size="10" ss:Color="#6B7280"/><Interior ss:Color="#E5E7EB" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#D1D5DB"/></Borders></Style>
   <Style ss:ID="pC"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#92400E"/><Interior ss:Color="#FEF3C7" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FDE68A"/></Borders></Style>
   <Style ss:ID="pL"><Alignment ss:Horizontal="Left" ss:Vertical="Center" ss:WrapText="1"/><Font ss:FontName="Calibri" ss:Size="10" ss:Color="#92400E"/><Interior ss:Color="#FEF3C7" ss:Pattern="Solid"/><Borders><Border ss:Position="Bottom" ss:LineStyle="Continuous" ss:Weight="1" ss:Color="#FDE68A"/></Borders></Style>
-  <Style ss:ID="foot"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Italic="1" ss:Size="9" ss:Color="#94A3B8"/><Interior ss:Color="#0A0E1A" ss:Pattern="Solid"/></Style>`;
-      const xml=`<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel">\n<Styles>${styles}</Styles>\n<Worksheet ss:Name="Apuestas BetIQ">\n<Table>\n  <Column ss:Width="100"/><Column ss:Width="190"/><Column ss:Width="90"/><Column ss:Width="160"/><Column ss:Width="55"/><Column ss:Width="75"/><Column ss:Width="80"/><Column ss:Width="90"/>\n  <Row ss:Height="42"><Cell ss:StyleID="title" ss:MergeAcross="7"><Data ss:Type="String">BetClaude IA - HISTORIAL DE APUESTAS</Data></Cell></Row>\n  <Row ss:Height="16"><Cell ss:StyleID="sub" ss:MergeAcross="7"><Data ss:Type="String">Exportado el ${esc(new Date().toLocaleString("es-CO"))} - betclaude.app - Analisis de apuestas con IA</Data></Cell></Row>\n  <Row ss:Height="8"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>\n  <Row ss:Height="20">${sumRows.map(([l])=>`<Cell ss:StyleID="sumLbl"><Data ss:Type="String">${esc(l)}</Data></Cell>`).join('')}</Row>\n  <Row ss:Height="30">${sumRows.map(([,v,s])=>`<Cell ss:StyleID="${s}"><Data ss:Type="String">${esc(v)}</Data></Cell>`).join('')}</Row>\n  <Row ss:Height="8"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>\n  <Row ss:Height="24">${['FECHA','PARTIDO','CATEGORIA','MERCADO JUGADO','CUOTA','MONTO ($)','RESULTADO','GANANCIA ($)'].map(h=>`<Cell ss:StyleID="colH"><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>\n  ${dataRows}\n  <Row ss:Height="8"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>\n  <Row ss:Height="18"><Cell ss:StyleID="foot" ss:MergeAcross="7"><Data ss:Type="String">Las apuestas son sugerencias basadas en analisis estadistico con IA. Juega con responsabilidad. BetClaude IA - betclaude.app</Data></Cell></Row>\n</Table>\n</Worksheet>\n</Workbook>`;
+  <Style ss:ID="foot"><Alignment ss:Horizontal="Center" ss:Vertical="Center"/><Font ss:FontName="Calibri" ss:Italic="1" ss:Size="9" ss:Color="#4A7090"/><Interior ss:Color="#0D1B2A" ss:Pattern="Solid"/></Style>`;
+      const xml=`<?xml version="1.0" encoding="UTF-8"?>\n<?mso-application progid="Excel.Sheet"?>\n<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet" xmlns:x="urn:schemas-microsoft-com:office:excel">\n<Styles>${styles}</Styles>\n<Worksheet ss:Name="BetScore IA">\n<Table>\n  <Column ss:Width="100"/><Column ss:Width="190"/><Column ss:Width="90"/><Column ss:Width="160"/><Column ss:Width="55"/><Column ss:Width="75"/><Column ss:Width="80"/><Column ss:Width="90"/>\n  <Row ss:Height="20"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>
+  <Row ss:Height="52">
+    <Cell ss:StyleID="titleBall" ss:MergeAcross="1"><Data ss:Type="String">&#x26BD;</Data></Cell>
+    <Cell ss:StyleID="title"     ss:MergeAcross="5"><Data ss:Type="String">BetScore IA  |  HISTORIAL DE APUESTAS</Data></Cell>
+  </Row>\n  <Row ss:Height="18"><Cell ss:StyleID="sub" ss:MergeAcross="7"><Data ss:Type="String">Exportado el ${esc(new Date().toLocaleString("es-CO"))} - betscore.app - Analisis de apuestas con IA</Data></Cell></Row>\n  <Row ss:Height="8"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>\n  <Row ss:Height="20">${sumRows.map(([l])=>`<Cell ss:StyleID="sumLbl"><Data ss:Type="String">${esc(l)}</Data></Cell>`).join('')}</Row>\n  <Row ss:Height="30">${sumRows.map(([,v,s])=>`<Cell ss:StyleID="${s}"><Data ss:Type="String">${esc(v)}</Data></Cell>`).join('')}</Row>\n  <Row ss:Height="8"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>\n  <Row ss:Height="24">${['FECHA','PARTIDO','CATEGORIA','MERCADO JUGADO','CUOTA','MONTO ($)','RESULTADO','GANANCIA ($)'].map(h=>`<Cell ss:StyleID="colH"><Data ss:Type="String">${h}</Data></Cell>`).join('')}</Row>\n  ${dataRows}\n  <Row ss:Height="8"><Cell ss:StyleID="gap" ss:MergeAcross="7"><Data ss:Type="String"> </Data></Cell></Row>\n  <Row ss:Height="18"><Cell ss:StyleID="foot" ss:MergeAcross="7"><Data ss:Type="String">Las apuestas son sugerencias basadas en analisis estadistico con IA. Juega con responsabilidad. BetScore IA - betscore.app</Data></Cell></Row>\n</Table>\n</Worksheet>\n</Workbook>`;
       const blob=new Blob([xml],{type:'text/xml;charset=UTF-8'});
       const url=URL.createObjectURL(blob);
       const a=document.createElement('a');
@@ -783,7 +791,7 @@ function Historial() {
 }
 // ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
 export default function BetIQProV3() {
-  const [form, setForm] = useState({ local: "", visitante: "", liga: "", fecha: "", contexto: "" });
+  const [form, setForm] = useState({ local: "", visitante: "", fecha: "" });
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [data, setData] = useState(null);
@@ -862,23 +870,99 @@ export default function BetIQProV3() {
     };
 
     try {
-      // PASO 1 — búsqueda web libre (texto natural, sin restricción de formato)
-      setProgress("🔍 Buscando cuotas reales en Bet365/Betfair...");
-      const searchData = await apiCall(
-        "Eres un investigador deportivo experto. Usa búsqueda web para obtener datos reales y actuales. Responde con un resumen detallado en texto libre.",
-        [{
-          role: "user",
-          content: `Busca información real y actual para el partido "${form.local} vs ${form.visitante}" (${form.liga || "fútbol"}, ${form.fecha || "próximos días"}):
+      // PASO 1 — API-Football (datos reales: fixture, lesionados, cuotas, stats)
+      setProgress("🔍 Consultando datos reales en API-Football...");
+
+      let footballData = null;
+      let searchData = "";
+
+      try {
+        // Intentar API-Football primero (Vercel) o web search (Claude artifact)
+        const footballRes = await fetch("/api/football", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ local: form.local, visitante: form.visitante, fecha: form.fecha }),
+        });
+
+        const footballText = await footballRes.text();
+
+        if (!footballText.trimStart().startsWith("<") && footballRes.ok) {
+          footballData = JSON.parse(footballText);
+        }
+      } catch { /* fallback a web search */ }
+
+      if (footballData?.encontrado) {
+        // Construir resumen estructurado con datos reales de API-Football
+        const f = footballData;
+        const odds_bet365 = f.odds?.find(o => o.mercado === "Match Winner")?.valores || [];
+        const cuota_local = odds_bet365.find(v => v.value === "Home")?.odd || "No disponible";
+        const cuota_empate = odds_bet365.find(v => v.value === "Draw")?.odd || "No disponible";
+        const cuota_visit = odds_bet365.find(v => v.value === "Away")?.odd || "No disponible";
+
+        const formatLesionados = (lista) =>
+          lista.length > 0
+            ? lista.map(l => `${l.nombre} (${l.posicion || "N/D"}) — ${l.motivo || "Lesionado"}`).join(", ")
+            : "Sin lesionados confirmados en API-Football";
+
+        searchData = `DATOS REALES DE API-FOOTBALL (verificados):
+
+PARTIDO: ${f.fixture?.local?.nombre} vs ${f.fixture?.visitante?.nombre}
+LIGA: ${f.fixture?.liga} (${f.fixture?.pais})
+FECHA: ${f.fixture?.fecha}
+ESTADIO: ${f.fixture?.estadio}, ${f.fixture?.ciudad}
+ÁRBITRO: ${f.fixture?.arbitro || "Por confirmar"}
+
+CUOTAS REALES BET365:
+- ${f.fixture?.local?.nombre} gana: ${cuota_local}
+- Empate: ${cuota_empate}
+- ${f.fixture?.visitante?.nombre} gana: ${cuota_visit}
+
+MERCADOS ADICIONALES BET365:
+${f.odds?.slice(0, 8).map(o => `- ${o.mercado}: ${o.valores?.map(v => `${v.value}=${v.odd}`).join(", ")}`).join("
+") || "Sin datos"}
+
+LESIONADOS ${f.fixture?.local?.nombre?.toUpperCase()}:
+${formatLesionados(f.lesionados_local)}
+
+LESIONADOS ${f.fixture?.visitante?.nombre?.toUpperCase()}:
+${formatLesionados(f.lesionados_visitante)}
+
+ESTADÍSTICAS ${f.fixture?.local?.nombre?.toUpperCase()} (temporada):
+- Forma reciente: ${f.stats_local?.forma || "N/D"}
+- PJ: ${f.stats_local?.partidos_jugados || 0} | G: ${f.stats_local?.ganados || 0} | E: ${f.stats_local?.empatados || 0} | P: ${f.stats_local?.perdidos || 0}
+- Goles a favor: ${f.stats_local?.goles_favor || 0} | Promedio: ${f.stats_local?.promedio_goles_favor || 0}/partido
+- Goles en contra: ${f.stats_local?.goles_contra || 0} | Promedio: ${f.stats_local?.promedio_goles_contra || 0}/partido
+- Posición en tabla: ${f.posicion_local?.pos || "N/D"} | Puntos: ${f.posicion_local?.pts || "N/D"}
+
+ESTADÍSTICAS ${f.fixture?.visitante?.nombre?.toUpperCase()} (temporada):
+- Forma reciente: ${f.stats_visitante?.forma || "N/D"}
+- PJ: ${f.stats_visitante?.partidos_jugados || 0} | G: ${f.stats_visitante?.ganados || 0} | E: ${f.stats_visitante?.empatados || 0} | P: ${f.stats_visitante?.perdidos || 0}
+- Goles a favor: ${f.stats_visitante?.goles_favor || 0} | Promedio: ${f.stats_visitante?.promedio_goles_favor || 0}/partido
+- Goles en contra: ${f.stats_visitante?.goles_contra || 0} | Promedio: ${f.stats_visitante?.promedio_goles_contra || 0}/partido
+- Posición en tabla: ${f.posicion_visitante?.pos || "N/D"} | Puntos: ${f.posicion_visitante?.pts || "N/D"}
+
+FUENTE: API-Football (datos oficiales en tiempo real)`;
+
+        setProgress("✅ Datos reales obtenidos — Generando análisis con IA...");
+      } else {
+        // Fallback: búsqueda web con Claude
+        setProgress("🔍 Buscando datos via web search...");
+        searchData = await apiCall(
+          "Eres un investigador deportivo experto. Usa búsqueda web para obtener datos reales y actuales. Responde con un resumen detallado en texto libre.",
+          [{
+            role: "user",
+            content: `Busca información real y actual para el partido "${form.local} vs ${form.visitante}" (fútbol, ${form.fecha || "próximos días"}):
 1. Cuotas actuales en Bet365 o Betfair — busca: "${form.local} vs ${form.visitante} odds bet365 2026"
 2. Lesionados ${form.local} — busca: "${form.local} lesionados bajas mayo 2026"
 3. Lesionados ${form.visitante} — busca: "${form.visitante} lesionados bajas mayo 2026"
 4. Últimos 5 resultados de cada equipo
 5. Estadísticas: promedio goles, córners y tarjetas por partido esta temporada
 Incluye nombres exactos de jugadores lesionados/suspendidos con sus posiciones.`
-        }],
-        true,
-        3000
-      );
+          }],
+          true,
+          3000
+        );
+      }
 
       // PASO 2 — JSON con delimitadores explícitos — max_tokens suficiente sin exceder
       setProgress("⚖️ Calculando EV en 8+ mercados...");
@@ -886,7 +970,7 @@ Incluye nombres exactos de jugadores lesionados/suspendidos con sus posiciones.`
         SYSTEM_PROMPT,
         [{
           role: "user",
-          content: `Partido: ${form.local} vs ${form.visitante} | Liga: ${form.liga || "N/D"} | Fecha: ${form.fecha || "Próximos días"} | Contexto: ${form.contexto || "Ninguno"}
+          content: `Partido: ${form.local} vs ${form.visitante} | Fecha: ${form.fecha || "Próximos días"}
 
 DATOS REALES ENCONTRADOS EN LA BÚSQUEDA:
 ${searchData.slice(0, 3000)}
@@ -943,9 +1027,9 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
       const desc1 = t1.descripcion || parsed.top_apuesta?.descripcion || "—";
       const fuente1 = t1.cuota_fuente || parsed.top_apuesta?.cuota_fuente || "Estimada";
 
-      parsed.post_telegram = `🏆 *BetClaude IA* — ANÁLISIS ÉLITE\n\n⚽ ${parsed.partido?.local} vs ${parsed.partido?.visitante}\n🏆 ${parsed.partido?.competicion || form.liga || "Fútbol"} | ${parsed.partido?.fecha || form.fecha}\n\n━━━━━━━━━━━━━━━━━━━━\n🥇 APUESTA #1 — MAYOR VALOR\n━━━━━━━━━━━━━━━━━━━━\n🎯 ${nombre1}: ${desc1}\n💰 Cuota: ${cuota1} (${fuente1})\n📊 Confianza: ${conf1}% | EV: +${ev1}%\n\n🥈 ALTERNATIVA #2\n🎯 ${t2.nombre || "—"}: ${t2.descripcion || "—"}\n💰 Cuota: ${(t2.cuota || 0).toFixed(2)} | Confianza: ${t2.nivel_confianza || "—"}%\n\n🥉 ALTERNATIVA #3\n🎯 ${t3.nombre || "—"}: ${t3.descripcion || "—"}\n💰 Cuota: ${(t3.cuota || 0).toFixed(2)} | Confianza: ${t3.nivel_confianza || "—"}%\n\n━━━━━━━━━━━━━━━━━━━━\n🔑 PUNTOS CLAVE\n━━━━━━━━━━━━━━━━━━━━\n${(parsed.puntos_clave || []).map(p => `• ${p}`).join("\n")}\n\n🏥 Bajas ${parsed.partido?.local}: ${bL}\n🏥 Bajas ${parsed.partido?.visitante}: ${bV}\n\n⚡ Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n⚠️ Solo sugerencia. Juega con responsabilidad.`;
+      parsed.post_telegram = `🏆 *BetScore IA* — ANÁLISIS ÉLITE\n\n⚽ ${parsed.partido?.local} vs ${parsed.partido?.visitante}\n🏆 ${parsed.partido?.competicion || "Fútbol"} | ${parsed.partido?.fecha || form.fecha}\n\n━━━━━━━━━━━━━━━━━━━━\n🥇 APUESTA #1 — MAYOR VALOR\n━━━━━━━━━━━━━━━━━━━━\n🎯 ${nombre1}: ${desc1}\n💰 Cuota: ${cuota1} (${fuente1})\n📊 Confianza: ${conf1}% | EV: +${ev1}%\n\n🥈 ALTERNATIVA #2\n🎯 ${t2.nombre || "—"}: ${t2.descripcion || "—"}\n💰 Cuota: ${(t2.cuota || 0).toFixed(2)} | Confianza: ${t2.nivel_confianza || "—"}%\n\n🥉 ALTERNATIVA #3\n🎯 ${t3.nombre || "—"}: ${t3.descripcion || "—"}\n💰 Cuota: ${(t3.cuota || 0).toFixed(2)} | Confianza: ${t3.nivel_confianza || "—"}%\n\n━━━━━━━━━━━━━━━━━━━━\n🔑 PUNTOS CLAVE\n━━━━━━━━━━━━━━━━━━━━\n${(parsed.puntos_clave || []).map(p => `• ${p}`).join("\n")}\n\n🏥 Bajas ${parsed.partido?.local}: ${bL}\n🏥 Bajas ${parsed.partido?.visitante}: ${bV}\n\n⚡ Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n⚠️ Solo sugerencia. Juega con responsabilidad.`;
 
-      parsed.post_whatsapp = `🏆 *BetClaude IA*\n\n⚽ *${parsed.partido?.local} vs ${parsed.partido?.visitante}*\n📅 ${parsed.partido?.fecha || form.fecha} | 🏆 ${parsed.partido?.competicion || form.liga || "Fútbol"}\n\n─────────────────────\n🥇 *MEJOR APUESTA*\n─────────────────────\n🎯 *${nombre1}*\n📝 ${desc1}\n💰 Cuota: *${cuota1}* (${fuente1})\n✅ Confianza: *${conf1}%* | EV: *+${ev1}%*\n\n─────────────────────\n🥈 *ALTERNATIVAS*\n─────────────────────\n🎯 ${t2.nombre || "—"} — Cuota *${(t2.cuota || 0).toFixed(2)}*\n🎯 ${t3.nombre || "—"} — Cuota *${(t3.cuota || 0).toFixed(2)}*\n\n─────────────────────\n🔑 *PUNTOS CLAVE*\n─────────────────────\n${(parsed.puntos_clave || []).map((p, i) => `${i + 1}️⃣ ${p}`).join("\n")}\n\n🏥 *Bajas:*\n▪️ ${parsed.partido?.local}: ${bL}\n▪️ ${parsed.partido?.visitante}: ${bV}\n\n📊 Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n_⚠️ Solo sugerencia. Juega responsable._`;
+      parsed.post_whatsapp = `🏆 *BetScore IA*\n\n⚽ *${parsed.partido?.local} vs ${parsed.partido?.visitante}*\n📅 ${parsed.partido?.fecha || form.fecha} | 🏆 ${parsed.partido?.competicion || "Fútbol"}\n\n─────────────────────\n🥇 *MEJOR APUESTA*\n─────────────────────\n🎯 *${nombre1}*\n📝 ${desc1}\n💰 Cuota: *${cuota1}* (${fuente1})\n✅ Confianza: *${conf1}%* | EV: *+${ev1}%*\n\n─────────────────────\n🥈 *ALTERNATIVAS*\n─────────────────────\n🎯 ${t2.nombre || "—"} — Cuota *${(t2.cuota || 0).toFixed(2)}*\n🎯 ${t3.nombre || "—"} — Cuota *${(t3.cuota || 0).toFixed(2)}*\n\n─────────────────────\n🔑 *PUNTOS CLAVE*\n─────────────────────\n${(parsed.puntos_clave || []).map((p, i) => `${i + 1}️⃣ ${p}`).join("\n")}\n\n🏥 *Bajas:*\n▪️ ${parsed.partido?.local}: ${bL}\n▪️ ${parsed.partido?.visitante}: ${bV}\n\n📊 Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n_⚠️ Solo sugerencia. Juega responsable._`;
 
       setData(parsed);
       setTab("mercados");
@@ -954,7 +1038,7 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
       try {
         let prev = [];
         try {
-          const stored = await window.storage.get("betiq_historial");
+          const stored = await window.storage.get("betscore_historial");
           if (stored?.value) prev = JSON.parse(stored.value);
         } catch { prev = []; } // clave no existe aún — primera vez
 
@@ -965,7 +1049,7 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
           partido: `${parsed.partido?.local} vs ${parsed.partido?.visitante}`,
           local: parsed.partido?.local || form.local,
           visitante: parsed.partido?.visitante || form.visitante,
-          competicion: parsed.partido?.competicion || form.liga || "N/D",
+          competicion: parsed.partido?.competicion || "N/D",
           fecha_partido: parsed.partido?.fecha || form.fecha || "N/D",
           mercado_1: nombre1,
           desc_1: desc1,
@@ -991,7 +1075,7 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
         };
 
         const updated = [newRecord, ...prev];
-        await window.storage.set("betiq_historial", JSON.stringify(updated));
+        await window.storage.set("betscore_historial", JSON.stringify(updated));
       } catch (e) {
         console.warn("Auto-save historial falló:", e.message);
       }
@@ -1062,7 +1146,7 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
               </svg>
             </div>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-.01em" }}>Bet<span style={{ color: C.accent }}>Claude</span> <span style={{ color: C.green, fontSize:18 }}>IA</span> <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>v3</span></div>
+                <div style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-.01em" }}>Bet<span style={{ color: C.accent }}>Score</span> <span style={{ color: C.green, fontSize:18 }}>IA</span> <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>v3</span></div>
                 <div style={{ fontSize: 10, color: C.dim, letterSpacing: ".08em" }}>SPORTS BETTING INTELLIGENCE · IA</div>
               </div>
             </div>
@@ -1099,19 +1183,13 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
                   <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Equipo Visitante *</div>
                   <input style={inputS} value={form.visitante} onChange={e => setForm(f => ({ ...f, visitante: e.target.value }))} placeholder="Ej: Atlético Madrid" />
                 </div>
-                <div>
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Liga / Competición</div>
-                  <input style={inputS} value={form.liga} onChange={e => setForm(f => ({ ...f, liga: e.target.value }))} placeholder="Ej: La Liga, Champions League" />
-                </div>
+
                 <div>
                   <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Fecha</div>
                   <input style={inputS} value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} placeholder="Ej: 18/05/2025" />
                 </div>
               </div>
-              <div style={{ marginBottom: 16 }}>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Contexto adicional</div>
-                <textarea style={{ ...inputS, height: 65, resize: "vertical", lineHeight: 1.5 }} value={form.contexto} onChange={e => setForm(f => ({ ...f, contexto: e.target.value }))} placeholder="Ej: Partido de vuelta, local necesita ganar, sin estadio propio, etc." />
-              </div>
+
               <button onClick={analyze} disabled={loading || !form.local || !form.visitante} style={{
                 width: "100%", background: loading ? C.dim : "linear-gradient(135deg,#16a34a,#22c55e)", color: "#fff", border: "none", borderRadius: 10,
                 padding: "14px", fontWeight: 800, fontSize: 15, cursor: loading ? "not-allowed" : "pointer",
@@ -1389,7 +1467,7 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
                 )}
 
                 <div style={{ marginTop: 20, textAlign: "center" }}>
-                  <button onClick={() => { setData(null); setForm({ local: "", visitante: "", liga: "", fecha: "", contexto: "" }); }} style={{
+                  <button onClick={() => { setData(null); setForm({ local: "", visitante: "", fecha: "" }); }} style={{
                     background: "transparent", border: `1px solid ${C.border}`, color: C.muted,
                     borderRadius: 8, padding: "9px 20px", cursor: "pointer", fontSize: 13
                   }}>🔄 Nuevo análisis</button>
@@ -1408,9 +1486,9 @@ Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
             </div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
               {[
-                { n: "FREE", p: "$0/día", c: C.green, feats: ["1 análisis/día", "Multi-mercado (8+)", "Historial básico", "Post Telegram/WhatsApp"] },
-                { n: "PREMIUM", p: "$4.99/día", c: C.accent, feats: ["Análisis diario premium", "Top 3 mercados con EV", "Historial ilimitado", "ROI tracking", "Post listo para publicar"], hi: true },
-                { n: "CANAL MES", p: "$39.99/mes", c: C.blue, feats: ["Todas las apuestas del mes", "Canal Telegram privado", "Alertas en tiempo real", "Soporte personalizado"] },
+                { n: "FREE", p: "$0/día", c: C.green, feats: ["1 Análisis de partido gratis diario", "1 Pronóstico gratis diario", "Manejo de Historial", "Balance de apuestas", "Excel Exportable"] },
+                { n: "PREMIUM", p: "$4.99/día", c: C.accent, feats: ["3 Análisis de partidos diarios", "1 Pronóstico diario premium + 1 Pronóstico gratis diario", "Manejo de Historial", "Balance de apuestas", "Excel Exportable", "Acceso canal Telegram/WhatsApp privado", "Acceso al método ganador probado"], hi: true },
+                { n: "VIP", p: "$39.99/mes", c: C.blue, feats: ["Análisis de partidos ilimitado", "Todos los pronósticos VIP, Premium y gratis", "Manejo de Historial", "Balance de apuestas", "Excel Exportable", "Acceso canal Telegram/WhatsApp privado", "Acceso al método ganador probado", "Acompañamiento en el método ganador", "Soporte personalizado"] },
               ].map(plan => (
                 <div key={plan.n} style={{ background: C.card2, border: `1px solid ${plan.hi ? plan.c + "66" : C.border}`, borderRadius: 10, padding: "16px" }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: plan.c, marginBottom: 6 }}>{plan.n}</div>
