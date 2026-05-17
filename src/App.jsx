@@ -918,9 +918,7 @@ CUOTAS REALES BET365:
 - ${f.fixture?.visitante?.nombre} gana: ${cuota_visit}
 
 MERCADOS ADICIONALES BET365:
-${f.odds?.slice(0, 8).map(o => `- ${o.mercado}: ${o.valores?.map(v => `${v.value}=${v.odd}`).join(", ")}`).join("
-") || "Sin datos"}
-
+${(f.odds || []).slice(0, 8).map(o => "- " + (o.mercado||"") + ": " + (o.valores||[]).map(v => (v.value||"") + "=" + (v.odd||"")).join(", ")).join("\n") || "Sin datos"}
 LESIONADOS ${f.fixture?.local?.nombre?.toUpperCase()}:
 ${formatLesionados(f.lesionados_local)}
 
