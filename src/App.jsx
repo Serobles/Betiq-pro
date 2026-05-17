@@ -923,27 +923,19 @@ CUOTAS REALES BET365:
 - Empate: ${cuota_empate}
 - ${f.fixture?.visitante?.nombre} gana: ${cuota_visit}
 
-MERCADOS ADICIONALES BET365:
-${(f.odds || []).slice(0, 8).map(o => "- " + (o.mercado||"") + ": " + (o.valores||[]).map(v => (v.value||"") + "=" + (v.odd||"")).join(", ")).join("\n") || "Sin datos"}
+MERCADOS BET365 (top 5):
+${(f.odds || []).slice(0, 5).map(o => "- " + (o.mercado||"") + ": " + (o.valores||[]).slice(0,4).map(v => (v.value||"") + "=" + (v.odd||"")).join(", ")).join("\n") || "Sin datos"}
 LESIONADOS ${f.fixture?.local?.nombre?.toUpperCase()}:
 ${formatLesionados(f.lesionados_local)}
 
 LESIONADOS ${f.fixture?.visitante?.nombre?.toUpperCase()}:
 ${formatLesionados(f.lesionados_visitante)}
 
-ESTADÍSTICAS ${f.fixture?.local?.nombre?.toUpperCase()} (temporada):
-- Forma reciente: ${f.stats_local?.forma || "N/D"}
-- PJ: ${f.stats_local?.partidos_jugados || 0} | G: ${f.stats_local?.ganados || 0} | E: ${f.stats_local?.empatados || 0} | P: ${f.stats_local?.perdidos || 0}
-- Goles a favor: ${f.stats_local?.goles_favor || 0} | Promedio: ${f.stats_local?.promedio_goles_favor || 0}/partido
-- Goles en contra: ${f.stats_local?.goles_contra || 0} | Promedio: ${f.stats_local?.promedio_goles_contra || 0}/partido
-- Posición en tabla: ${f.posicion_local?.pos || "N/D"} | Puntos: ${f.posicion_local?.pts || "N/D"}
+STATS ${f.fixture?.local?.nombre?.toUpperCase()}:
+Forma:${f.stats_local?.forma||"N/D"} PJ:${f.stats_local?.partidos_jugados||0} G:${f.stats_local?.ganados||0} E:${f.stats_local?.empatados||0} P:${f.stats_local?.perdidos||0} GF:${f.stats_local?.goles_favor||0} GC:${f.stats_local?.goles_contra||0} Pos:${f.posicion_local?.pos||"N/D"} Pts:${f.posicion_local?.pts||"N/D"}
 
-ESTADÍSTICAS ${f.fixture?.visitante?.nombre?.toUpperCase()} (temporada):
-- Forma reciente: ${f.stats_visitante?.forma || "N/D"}
-- PJ: ${f.stats_visitante?.partidos_jugados || 0} | G: ${f.stats_visitante?.ganados || 0} | E: ${f.stats_visitante?.empatados || 0} | P: ${f.stats_visitante?.perdidos || 0}
-- Goles a favor: ${f.stats_visitante?.goles_favor || 0} | Promedio: ${f.stats_visitante?.promedio_goles_favor || 0}/partido
-- Goles en contra: ${f.stats_visitante?.goles_contra || 0} | Promedio: ${f.stats_visitante?.promedio_goles_contra || 0}/partido
-- Posición en tabla: ${f.posicion_visitante?.pos || "N/D"} | Puntos: ${f.posicion_visitante?.pts || "N/D"}
+STATS ${f.fixture?.visitante?.nombre?.toUpperCase()}:
+Forma:${f.stats_visitante?.forma||"N/D"} PJ:${f.stats_visitante?.partidos_jugados||0} G:${f.stats_visitante?.ganados||0} E:${f.stats_visitante?.empatados||0} P:${f.stats_visitante?.perdidos||0} GF:${f.stats_visitante?.goles_favor||0} GC:${f.stats_visitante?.goles_contra||0} Pos:${f.posicion_visitante?.pos||"N/D"} Pts:${f.posicion_visitante?.pts||"N/D"}
 
 FUENTE: API-Football (datos oficiales en tiempo real)`;
 
@@ -955,13 +947,11 @@ FUENTE: API-Football (datos oficiales en tiempo real)`;
           "Eres un investigador deportivo experto. Usa búsqueda web para obtener datos reales y actuales. Responde con un resumen detallado en texto libre.",
           [{
             role: "user",
-            content: `Busca información real y actual para el partido "${form.local} vs ${form.visitante}" (fútbol, ${form.fecha || "próximos días"}):
-1. Cuotas actuales en Bet365 o Betfair — busca: "${form.local} vs ${form.visitante} odds bet365 2026"
-2. Lesionados ${form.local} — busca: "${form.local} lesionados bajas mayo 2026"
-3. Lesionados ${form.visitante} — busca: "${form.visitante} lesionados bajas mayo 2026"
-4. Últimos 5 resultados de cada equipo
-5. Estadísticas: promedio goles, córners y tarjetas por partido esta temporada
-Incluye nombres exactos de jugadores lesionados/suspendidos con sus posiciones.`
+            content: `Busca para: ${form.local} vs ${form.visitante} (${form.fecha || "próximos días"}):
+1. "${form.local} vs ${form.visitante} odds bet365"
+2. "${form.local} injuries news 2026"
+3. "${form.visitante} injuries news 2026"
+Responde en máximo 500 palabras con cuotas, lesionados y forma reciente.`
           }],
           true,
           3000
@@ -977,22 +967,13 @@ Incluye nombres exactos de jugadores lesionados/suspendidos con sus posiciones.`
           content: `Partido: ${form.local} vs ${form.visitante} | Fecha: ${form.fecha || "Próximos días"}
 
 DATOS REALES ENCONTRADOS EN LA BÚSQUEDA:
-${searchData.slice(0, 3000)}
+${searchData.slice(0, 1200)}
 
-INSTRUCCIÓN DE FORMATO — CRÍTICA:
-Escribe EXACTAMENTE esto y nada más:
----JSON_START---
-{ aquí va el JSON completo }
----JSON_END---
-
-No escribas NADA antes de ---JSON_START--- ni después de ---JSON_END---.
-IMPORTANTE: Omite los campos "post_telegram" y "post_whatsapp" del JSON — se generan automáticamente.
-Analiza exactamente 8 mercados: 1X2, Doble Oportunidad, BTTS, Más de 2.5 Goles, Menos de 2.5 Goles, Más de 1.5 Goles, Hándicap Asiático, y Córners o Tarjetas. Usa las cuotas reales de la búsqueda. Cuota mínima mercado #1: 1.40.
-Sé conciso en los campos "detalle" y "razon" — máximo 1 oración cada uno.`
+FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto extra. Omite post_telegram y post_whatsapp. Analiza 8 mercados. Cuota mínima #1: 1.40. Sé conciso.`
         }],
         false,
-        6000,
-        100000
+        2500,
+        90000
       );
 
       clearInterval(iv);
