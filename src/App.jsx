@@ -36,13 +36,12 @@ const MERCADOS_ICONS = {
 
 const SYSTEM_PROMPT = `Eres un analista cuantitativo de apuestas deportivas de nivel élite. Analizas múltiples mercados de apuesta para encontrar el mayor valor esperado (EV positivo).
 
-⚠️ INSTRUCCIÓN CRÍTICA DE FORMATO — MÁXIMA PRIORIDAD:
-Tu respuesta DEBE comenzar EXACTAMENTE con el carácter "{" y terminar EXACTAMENTE con "}".
-NO escribas ningún texto antes del JSON. NO escribas ningún texto después del JSON.
-NO uses markdown, NO uses bloques de código, NO uses comillas adicionales.
-RESPUESTA INVÁLIDA: "Con toda la información... {json}"
-RESPUESTA VÁLIDA: {"partido": {...}, ...}
-Si escribes algo antes del "{" o después del "}", la aplicación fallará completamente.
+⚠️ FORMATO OBLIGATORIO:
+Responde ÚNICAMENTE con:
+---JSON_START---
+{ JSON aquí }
+---JSON_END---
+Nada de texto antes ni después. Sin markdown. Sin bloques de código.
 
 ══════════════════════════════════════════════
 REGLAS ABSOLUTAS — NO NEGOCIABLES
@@ -983,12 +982,11 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
       const startMarker = "---JSON_START---";
       const endMarker = "---JSON_END---";
       const startIdx = raw.indexOf(startMarker);
-      const endIdx = raw.indexOf(endMarker);
+      const endIdx = raw.lastIndexOf(endMarker);
 
       if (startIdx !== -1 && endIdx !== -1) {
         raw = raw.slice(startIdx + startMarker.length, endIdx).trim();
       } else {
-        // Fallback: buscar primer { y último }
         raw = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
         const fb = raw.indexOf("{");
         const lb = raw.lastIndexOf("}");
@@ -996,7 +994,42 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
         raw = raw.slice(fb, lb + 1);
       }
 
-      const parsed = JSON.parse(raw);
+      // Limpiar JSON — eliminar caracteres de control, newlines dentro de strings
+      const cleanJson = (str) => {
+        let inString = false;
+        let escaped = false;
+        let result = "";
+        for (let i = 0; i < str.length; i++) {
+          const ch = str[i];
+          if (escaped) { result += ch; escaped = false; continue; }
+          if (ch === "\\") { escaped = true; result += ch; continue; }
+          if (ch === '"') { inString = !inString; result += ch; continue; }
+          if (inString && (ch === "\n" || ch === "\r" || ch === "\t")) {
+            result += " "; continue;
+          }
+          result += ch;
+        }
+        return result;
+      };
+
+      let parsed;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        // Intento 2: limpiar y reintentar
+        try {
+          parsed = JSON.parse(cleanJson(raw));
+        } catch {
+          // Intento 3: extraer solo hasta el último } válido
+          let depth = 0; let lastValid = -1;
+          for (let i = 0; i < raw.length; i++) {
+            if (raw[i] === "{") depth++;
+            if (raw[i] === "}") { depth--; if (depth === 0) { lastValid = i; break; } }
+          }
+          if (lastValid === -1) throw new Error("JSON inválido en la respuesta del modelo");
+          parsed = JSON.parse(cleanJson(raw.slice(0, lastValid + 1)));
+        }
+      }
 
       // Generar posts en el cliente (evitamos que el modelo los genere para ahorrar tokens)
       const t1 = parsed.mercados_analizados?.find(m => m.ranking === 1) || parsed.top_apuesta || {};
