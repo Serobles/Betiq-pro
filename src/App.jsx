@@ -805,20 +805,36 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
         raw = raw.slice(fb, lb + 1);
       }
 
-      // Limpiar JSON — eliminar caracteres de control, newlines dentro de strings
+      // Limpiar JSON — fix newlines y comillas no escapadas dentro de strings
       const cleanJson = (str) => {
-        let inString = false;
-        let escaped = false;
         let result = "";
-        for (let i = 0; i < str.length; i++) {
+        let inString = false;
+        let i = 0;
+        while (i < str.length) {
           const ch = str[i];
-          if (escaped) { result += ch; escaped = false; continue; }
-          if (ch === "\\") { escaped = true; result += ch; continue; }
-          if (ch === '"') { inString = !inString; result += ch; continue; }
-          if (inString && (ch === "\n" || ch === "\r" || ch === "\t")) {
-            result += " "; continue;
+          if (inString) {
+            if (ch === "\\" && i + 1 < str.length) {
+              result += ch + str[i + 1]; i += 2; continue;
+            }
+            if (ch === '"') {
+              // Detectar si es comilla de cierre mirando el siguiente char no-espacio
+              let j = i + 1;
+              while (j < str.length && str[j] === " ") j++;
+              const nx = str[j];
+              if (nx === ":" || nx === "," || nx === "}" || nx === "]" || nx === "\n" || nx === "\r" || j >= str.length) {
+                inString = false; result += ch;
+              } else {
+                result += '\\"'; // escapar comilla interna
+              }
+              i++; continue;
+            }
+            if (ch === "\n" || ch === "\r" || ch === "\t") { result += " "; i++; continue; }
+            result += ch;
+          } else {
+            if (ch === '"') inString = true;
+            result += ch;
           }
-          result += ch;
+          i++;
         }
         return result;
       };
