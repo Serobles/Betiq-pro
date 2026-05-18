@@ -764,11 +764,9 @@ Responde en máximo 500 palabras con cuotas, lesionados y forma reciente.`
 DATOS REALES DE API-FOOTBALL:
 ${searchData.slice(0, 1200)}
 
-IMPORTANTE: Antes de generar el JSON, busca en internet las noticias mas recientes de bajas, lesionados y convocatoria de ambos equipos para el partido. Busca: "${form.local} bajas lesionados 2026" y "${form.visitante} bajas lesionados 2026". Complementa los datos de API-Football con lo que encuentres en web.
-
 FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto extra. Analiza 8 mercados. Cuota minima #1: 1.40.`
         }],
-        true,
+        false,
         4000,
         120000
       );
