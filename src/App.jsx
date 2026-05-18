@@ -592,6 +592,12 @@ function Historial() {
 }
 // ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
 export default function BetIQProV3() {
+  // Fijar color de fondo en body para evitar fondo blanco en overscroll móvil
+  if (typeof document !== "undefined") {
+    document.body.style.background = "#0d1b2a";
+    document.body.style.margin = "0";
+    document.documentElement.style.background = "#0d1b2a";
+  }
   const [form, setForm] = useState({ local: "", visitante: "", fecha: "" });
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
@@ -945,7 +951,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
   const otros = data?.mercados_analizados?.filter(m => !m.recomendado) || [];
 
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','Segoe UI',sans-serif", paddingBottom: 60 }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','Segoe UI',sans-serif", paddingBottom: 60, overflowX: "hidden" }}>
 
       {/* HEADER */}
       <div style={{ background: `linear-gradient(135deg, #0d1b2a 0%, #162436 60%, #1c2e44 100%)`, borderBottom: `1px solid ${C.border}`, padding: "18px 24px 14px" }}>
@@ -1333,16 +1339,17 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
               <Badge color={C.accent} size="md">👑 PLANES DE ACCESO</Badge>
               <div style={{ fontWeight: 800, fontSize: 17, marginTop: 10 }}>Elige tu nivel</div>
             </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12 }}>
+            {/* Grid responsive: 1 col en móvil, 3 en desktop */}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, width: "100%", boxSizing: "border-box" }}>
               {[
                 { n: "FREE", p: "$0/día", c: C.green, feats: ["1 Análisis de partido gratis diario", "1 Pronóstico gratis diario", "Manejo de Historial", "Balance de apuestas", "Excel Exportable"] },
                 { n: "PREMIUM", p: "$4.99/día", c: C.accent, feats: ["3 Análisis de partidos diarios", "1 Pronóstico diario premium + 1 Pronóstico gratis diario", "Manejo de Historial", "Balance de apuestas", "Excel Exportable", "Acceso canal Telegram/WhatsApp privado", "Acceso al método ganador probado"], hi: true },
                 { n: "VIP", p: "$39.99/mes", c: C.blue, feats: ["Análisis de partidos ilimitado", "Todos los pronósticos VIP, Premium y gratis", "Manejo de Historial", "Balance de apuestas", "Excel Exportable", "Acceso canal Telegram/WhatsApp privado", "Acceso al método ganador probado", "Acompañamiento en el método ganador", "Soporte personalizado"] },
               ].map(plan => (
-                <div key={plan.n} style={{ background: C.card2, border: `1px solid ${plan.hi ? plan.c + "66" : C.border}`, borderRadius: 10, padding: "16px" }}>
+                <div key={plan.n} style={{ background: C.card2, border: `1px solid ${plan.hi ? plan.c + "66" : C.border}`, borderRadius: 10, padding: "16px", boxSizing: "border-box", minWidth: 0 }}>
                   <div style={{ fontSize: 12, fontWeight: 800, color: plan.c, marginBottom: 6 }}>{plan.n}</div>
                   <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 12 }}>{plan.p}</div>
-                  {plan.feats.map(f => <div key={f} style={{ fontSize: 11, color: C.muted, marginBottom: 5, display: "flex", gap: 6 }}><span style={{ color: C.green }}>✓</span>{f}</div>)}
+                  {plan.feats.map(f => <div key={f} style={{ fontSize: 11, color: C.muted, marginBottom: 5, display: "flex", gap: 6 }}><span style={{ color: C.green, flexShrink: 0 }}>✓</span>{f}</div>)}
                 </div>
               ))}
             </div>
