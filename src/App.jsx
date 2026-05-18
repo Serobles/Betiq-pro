@@ -736,21 +736,11 @@ FUENTE: API-Football (datos oficiales en tiempo real)`;
 
         setProgress("✅ Datos reales obtenidos — Generando análisis con IA...");
       } else {
-        // Fallback: búsqueda web con Claude
-        setProgress("🔍 Buscando datos via web search...");
-        searchData = await apiCall(
-          "Eres un investigador deportivo experto. Usa búsqueda web para obtener datos reales y actuales. Responde con un resumen detallado en texto libre.",
-          [{
-            role: "user",
-            content: `Busca para: ${form.local} vs ${form.visitante} (${form.fecha || "próximos días"}):
-1. "${form.local} vs ${form.visitante} odds bet365"
-2. "${form.local} injuries news 2026"
-3. "${form.visitante} injuries news 2026"
-Responde en máximo 500 palabras con cuotas, lesionados y forma reciente.`
-          }],
-          true,
-          3000
-        );
+        // Sin datos de API-Football: Claude analiza con conocimiento propio
+        setProgress("🧠 Analizando con conocimiento de IA...");
+        searchData = `Partido: ${form.local} vs ${form.visitante} | Fecha: ${form.fecha || "próximos días"}.
+Partido no encontrado en API-Football para esa fecha. Analiza basandote en tu conocimiento del historial,
+forma reciente, estadísticas y contexto de ambos equipos. Usa cuotas estimadas realistas.`;
       }
 
       // PASO 2 — JSON con delimitadores explícitos — max_tokens suficiente sin exceder
