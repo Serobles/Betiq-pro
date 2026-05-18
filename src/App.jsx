@@ -598,7 +598,7 @@ export default function BetIQProV3() {
     document.body.style.margin = "0";
     document.documentElement.style.background = "#0d1b2a";
   }
-  const [form, setForm] = useState({ local: "", visitante: "", fecha: "" });
+  const [form, setForm] = useState({ local: "", visitante: "" });
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [data, setData] = useState(null);
@@ -744,7 +744,7 @@ FUENTE: API-Football (datos oficiales en tiempo real)`;
       } else {
         // Sin datos de API-Football: Claude analiza con conocimiento propio
         setProgress("🧠 Analizando con conocimiento de IA...");
-        searchData = `Partido: ${form.local} vs ${form.visitante} | Fecha: ${form.fecha || "próximos días"}.
+        searchData = `Partido: ${form.local} vs ${form.visitante} | Fecha: "próximos días".
 Partido no encontrado en API-Football para esa fecha. Analiza basandote en tu conocimiento del historial,
 forma reciente, estadísticas y contexto de ambos equipos. Usa cuotas estimadas realistas.`;
       }
@@ -755,7 +755,7 @@ forma reciente, estadísticas y contexto de ambos equipos. Usa cuotas estimadas 
         SYSTEM_PROMPT,
         [{
           role: "user",
-          content: `Partido: ${form.local} vs ${form.visitante} | Fecha: ${form.fecha || "Próximos días"}
+          content: `Partido: ${form.local} vs ${form.visitante} | Fecha: ${"Próximos días"}
 
 DATOS REALES DE API-FOOTBALL:
 ${searchData.slice(0, 1200)}
@@ -901,7 +901,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
           local: String(parsed?.partido?.local || form.local || ""),
           visitante: String(parsed?.partido?.visitante || form.visitante || ""),
           competicion: String(parsed?.partido?.competicion || "N/D"),
-          fecha_partido: String(parsed?.partido?.fecha || form.fecha || "N/D"),
+          fecha_partido: String(parsed?.partido?.fecha || "Próximos días"),
           mercado_1: String(nombre1 || "—"),
           desc_1: String(desc1 || "—"),
           cuota_1: Number(parseFloat(cuota1)) || 0,
@@ -1001,7 +1001,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
               </svg>
             </div>
               <div>
-                <div style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-.01em" }}>Bet<span style={{ color: C.accent }}>Score</span> <span style={{ color: C.green, fontSize:18 }}>IA</span> <span style={{ fontSize: 12, color: C.dim, fontWeight: 400 }}>v3</span></div>
+                <div style={{ fontWeight: 900, fontSize: 20, letterSpacing: "-.01em" }}>Bet<span style={{ color: C.accent }}>Score</span> <span style={{ color: C.green, fontSize:18 }}>IA</span></div>
                 <div style={{ fontSize: 10, color: C.dim, letterSpacing: ".08em" }}>SPORTS BETTING INTELLIGENCE · IA</div>
               </div>
             </div>
@@ -1322,7 +1322,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 )}
 
                 <div style={{ marginTop: 20, textAlign: "center" }}>
-                  <button onClick={() => { setData(null); setForm({ local: "", visitante: "", fecha: "" }); }} style={{
+                  <button onClick={() => { setData(null); setForm({ local: "", visitante: "" }); }} style={{
                     background: "transparent", border: `1px solid ${C.border}`, color: C.muted,
                     borderRadius: 8, padding: "9px 20px", cursor: "pointer", fontSize: 13
                   }}>🔄 Nuevo análisis</button>
