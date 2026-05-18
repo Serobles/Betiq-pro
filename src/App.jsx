@@ -845,7 +845,34 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
         }
       }
 
-      // Generar posts en el cliente (evitamos que el modelo los genere para ahorrar tokens)
+      // Normalizar factores: si es objeto {forma_local:70,...} → convertir a array para el UI
+      if (parsed.factores && !Array.isArray(parsed.factores)) {
+        const f = parsed.factores;
+        parsed.factores = [
+          { nombre: "Forma", icono: "📈", local: f.forma_local || 50, visitante: f.forma_visitante || 50, detalle: "" },
+          { nombre: "Presión", icono: "🏟️", local: f.presion_local || 50, visitante: f.presion_visitante || f.presion_local || 50, detalle: "" },
+          { nombre: "Motivación", icono: "🎯", local: f.motivacion_local || 50, visitante: f.motivacion_visitante || 50, detalle: "" },
+          { nombre: "Cansancio", icono: "😴", local: 100-(f.cansancio_local||25), visitante: 100-(f.cansancio_visitante||25), detalle: "" },
+        ];
+      }
+      if (!parsed.factores) parsed.factores = [];
+
+      // Normalizar bajas: si son strings → convertir a arrays de objetos
+      if (parsed.bajas) {
+        const toArr = (v) => {
+          if (Array.isArray(v)) return v;
+          if (!v || typeof v !== "string") return [];
+          const s = v.trim();
+          if (!s || s.toLowerCase() === "ninguna" || s === "-" || s === "sin bajas") return [];
+          return s.split(",").map(n => ({ nombre: n.trim(), posicion: "N/D", es_titular: false }));
+        };
+        parsed.bajas.local = toArr(parsed.bajas.local);
+        parsed.bajas.visitante = toArr(parsed.bajas.visitante);
+      } else {
+        parsed.bajas = { local: [], visitante: [] };
+      }
+
+      // Generar posts en el cliente
       const t1 = parsed.mercados_analizados?.find(m => m.ranking === 1) || parsed.top_apuesta || {};
       const t2 = parsed.mercados_analizados?.find(m => m.ranking === 2) || {};
       const t3 = parsed.mercados_analizados?.find(m => m.ranking === 3) || {};
