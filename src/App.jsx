@@ -1038,11 +1038,6 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                   <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Equipo Visitante *</div>
                   <input style={inputS} value={form.visitante} onChange={e => setForm(f => ({ ...f, visitante: e.target.value }))} placeholder="Ej: Atlético Madrid" />
                 </div>
-
-                <div>
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Fecha</div>
-                  <input style={inputS} value={form.fecha} onChange={e => setForm(f => ({ ...f, fecha: e.target.value }))} placeholder="Ej: 18/05/2025" />
-                </div>
               </div>
 
               <button onClick={analyze} disabled={loading || !form.local || !form.visitante} style={{
