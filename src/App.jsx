@@ -45,6 +45,17 @@ El JSON tiene exactamente esta estructura (reemplaza los valores de ejemplo con 
 
 INSTRUCCION FINAL: Copia exactamente esa estructura JSON pero con los datos REALES del partido. No uses comillas dobles dentro de los valores de texto. Usa solo letras, numeros, espacios y puntos en los campos de texto.`;
 
+
+// ── Calcular stake sugerido según EV y confianza ──────────────────────
+const calcStake = (ev, confianza) => {
+  const e = parseFloat(ev) || 0;
+  const c = parseFloat(confianza) || 0;
+  if (e >= 0.15 && c >= 70) return { pct: 4.0, label: "ALTO",   color: "#04e872", desc: "Confianza máxima" };
+  if (e >= 0.10 && c >= 60) return { pct: 3.0, label: "MEDIO",  color: "#22c55e", desc: "Buena confianza" };
+  if (e >= 0.05 && c >= 50) return { pct: 2.0, label: "NORMAL", color: "#f59e0b", desc: "Confianza moderada" };
+  return                          { pct: 1.5, label: "BAJO",   color: "#f87171", desc: "Apuesta cautelosa" };
+};
+
 const PIE_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
 
 function Badge({ children, color = C.accent, size = "sm" }) {
@@ -92,7 +103,7 @@ function ScoreBar({ local, visitante }) {
   );
 }
 
-function MercadoCard({ m, partido, rank }) {
+function MercadoCard({ m, partido, rank, bank = 0 }) {
   const rankColors = { 1: C.accent, 2: C.blue, 3: C.dim };
   const rankLabels = { 1: "🥇 MEJOR VALOR", 2: "🥈 ALTERNATIVA", 3: "🥉 OPCIÓN 3" };
   return (
@@ -132,6 +143,17 @@ function MercadoCard({ m, partido, rank }) {
       <div style={{ fontSize: 12, color: C.muted, borderTop: `1px solid ${C.border}`, paddingTop: 8, marginTop: 6, lineHeight: 1.6 }}>
         {m.razon}
       </div>
+      {/* Stake inline por mercado */}
+      {bank > 0 && (() => {
+        const sk = calcStake(m.ev, m.nivel_confianza);
+        const monto = ((bank * sk.pct) / 100).toFixed(2);
+        return (
+          <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", background: `${sk.color}11`, border: `1px solid ${sk.color}33`, borderRadius: 6, padding: "6px 10px" }}>
+            <span style={{ fontSize: 11, color: sk.color, fontWeight: 700 }}>💰 Stake: {sk.pct}%</span>
+            <span style={{ fontSize: 13, color: sk.color, fontWeight: 900 }}>${monto}</span>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -599,6 +621,7 @@ export default function BetIQProV3() {
     document.documentElement.style.background = "#0d1b2a";
   }
   const [form, setForm] = useState({ local: "", visitante: "" });
+  const [bank, setBank] = useState(1000);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [data, setData] = useState(null);
@@ -1084,6 +1107,43 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                       </div>
                     ))}
                   </div>
+
+                  {/* ── STAKE SUGERIDO ── */}
+                  {(() => {
+                    const sk = calcStake(data.top_apuesta?.ev, data.top_apuesta?.nivel_confianza);
+                    const monto = ((bank * sk.pct) / 100).toFixed(2);
+                    return (
+                      <div style={{ marginTop: 14, background: "#ffffff08", border: `1px solid ${sk.color}55`, borderRadius: 10, padding: "14px 16px" }}>
+                        <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>💰 STAKE SUGERIDO</div>
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                            <div style={{ fontSize: 36, fontWeight: 900, color: sk.color, lineHeight: 1 }}>{sk.pct}%</div>
+                            <div>
+                              <div style={{ fontSize: 12, fontWeight: 800, color: sk.color }}>{sk.label}</div>
+                              <div style={{ fontSize: 11, color: C.muted }}>{sk.desc}</div>
+                            </div>
+                          </div>
+                          <div style={{ textAlign: "right" }}>
+                            <div style={{ fontSize: 28, fontWeight: 900, color: sk.color }}>${monto}</div>
+                            <div style={{ fontSize: 11, color: C.dim }}>de tu bank actual</div>
+                          </div>
+                        </div>
+                        <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>
+                          <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>🏦 Bank:</span>
+                          <input
+                            type="number"
+                            value={bank}
+                            onChange={e => setBank(parseFloat(e.target.value) || 0)}
+                            style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "7px 10px", color: C.text, fontSize: 13, fontWeight: 600 }}
+                          />
+                          <span style={{ fontSize: 11, color: sk.color, fontWeight: 700, flexShrink: 0 }}>EV +{((data.top_apuesta?.ev||0)*100).toFixed(0)}% · {data.top_apuesta?.nivel_confianza}% conf</span>
+                        </div>
+                        <div style={{ marginTop: 10, fontSize: 10, color: C.dim, lineHeight: 1.5 }}>
+                          📊 Stake calculado con el modelo de gestión de riesgo de BetScore IA basado en EV y nivel de confianza
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* INFO PARTIDO */}
@@ -1114,7 +1174,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: C.accent, marginBottom: 14 }}>🥇 Top 3 Mercados por Valor Esperado</div>
                     <div style={{ display: "grid", gap: 14, marginBottom: 24 }}>
-                      {top3.map(m => <MercadoCard key={m.nombre} m={m} partido={data.partido} rank={m.ranking} />)}
+                      {top3.map(m => <MercadoCard key={m.nombre} m={m} partido={data.partido} rank={m.ranking} bank={bank} />)}
                     </div>
                     {otros.length > 0 && (
                       <>
