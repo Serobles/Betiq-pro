@@ -1132,8 +1132,10 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                           <span style={{ fontSize: 11, color: C.muted, flexShrink: 0 }}>🏦 Bank:</span>
                           <input
                             type="number"
-                            value={bank}
+                            value={bank || ""}
                             onChange={e => setBank(parseFloat(e.target.value) || 0)}
+                            onFocus={e => e.target.select()}
+                            min="0"
                             style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "7px 10px", color: C.text, fontSize: 13, fontWeight: 600 }}
                           />
                           <span style={{ fontSize: 11, color: sk.color, fontWeight: 700, flexShrink: 0 }}>EV +{((data.top_apuesta?.ev||0)*100).toFixed(0)}% · {data.top_apuesta?.nivel_confianza}% conf</span>
