@@ -981,46 +981,68 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
         <div style={{ maxWidth: 920, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 42, height: 42, flexShrink: 0 }}>
-              <svg viewBox="0 0 228 260" width="42" height="42" xmlns="http://www.w3.org/2000/svg">
+              <div style={{ width: 44, height: 44, flexShrink: 0 }}>
+              <svg viewBox="0 0 88 88" width="44" height="44" xmlns="http://www.w3.org/2000/svg" shapeRendering="geometricPrecision">
                 <defs>
-                  <radialGradient id="hs" cx="36%" cy="28%" r="72%">
+                  <radialGradient id="hs" cx="34%" cy="26%" r="70%">
                     <stop offset="0%" stopColor="#ffffff"/>
-                    <stop offset="42%" stopColor="#d8d8d8"/>
-                    <stop offset="85%" stopColor="#607080"/>
-                    <stop offset="100%" stopColor="#2a3848"/>
+                    <stop offset="35%" stopColor="#e8edf2"/>
+                    <stop offset="70%" stopColor="#8aa0b4"/>
+                    <stop offset="100%" stopColor="#243040"/>
                   </radialGradient>
-                  <radialGradient id="hsh" cx="75%" cy="78%" r="52%">
-                    <stop offset="0%" stopColor="#000" stopOpacity="0.45"/>
+                  <radialGradient id="hsh" cx="74%" cy="76%" r="48%">
+                    <stop offset="0%" stopColor="#000" stopOpacity="0.4"/>
                     <stop offset="100%" stopColor="#000" stopOpacity="0"/>
                   </radialGradient>
-                  <clipPath id="hb"><circle cx="114" cy="130" r="106"/></clipPath>
+                  <radialGradient id="hgl" cx="50%" cy="50%" r="50%">
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity="0.18"/>
+                    <stop offset="100%" stopColor="#22c55e" stopOpacity="0"/>
+                  </radialGradient>
+                  <clipPath id="hb"><circle cx="44" cy="44" r="40"/></clipPath>
                 </defs>
-                <circle cx="114" cy="130" r="109" fill="none" stroke="#22c55e" strokeWidth="1.5" strokeDasharray="5,4" opacity="0.5"/>
-                <circle cx="114" cy="130" r="106" fill="url(#hs)"/>
-                <g clipPath="url(#hb)">
-                  <polygon points="114,108 135,122 128,148 100,148 93,122" fill="#111"/>
-                  <polygon points="114,24 156,44 150,72 114,82 78,72 72,44" fill="#111"/>
-                  <polygon points="158,48 210,72 218,114 196,140 168,132 156,86" fill="#111"/>
-                  <polygon points="196,156 218,196 204,238 168,246 140,220 148,178" fill="#111"/>
-                  <polygon points="88,178 80,220 42,246 10,218 26,180 60,168" fill="#111"/>
-                  <polygon points="72,44 56,86 28,132 10,114 18,72 70,48" fill="#111"/>
+                {/* Glow */}
+                <circle cx="44" cy="44" r="44" fill="url(#hgl)"/>
+                {/* Outer ring */}
+                <circle cx="44" cy="44" r="42" fill="none" stroke="#22c55e" strokeWidth="0.8" strokeDasharray="3.5,3" opacity="0.55"/>
+                {/* Ball base */}
+                <circle cx="44" cy="44" r="40" fill="url(#hs)"/>
+                {/* Black panels — bold and clear at small size */}
+                <g clipPath="url(#hb)" fill="#111111">
+                  {/* Center pentagon */}
+                  <polygon points="44,32 54,39 50,53 38,53 34,39"/>
+                  {/* Top */}
+                  <polygon points="44,4 62,14 59,30 44,34 29,30 26,14"/>
+                  {/* Upper right */}
+                  <polygon points="72,18 84,38 80,54 66,56 60,40 64,22"/>
+                  {/* Lower right */}
+                  <polygon points="80,60 76,78 62,86 48,80 50,62 68,56"/>
+                  {/* Lower left */}
+                  <polygon points="8,60 12,78 26,86 40,80 38,62 20,56"/>
+                  {/* Upper left */}
+                  <polygon points="16,18 24,22 28,40 14,56 0,54 4,38"/>
                 </g>
-                <g clipPath="url(#hb)" stroke="#222" strokeWidth="2.2" fill="none">
-                  <polygon points="114,108 135,122 128,148 100,148 93,122"/>
-                  <line x1="114" y1="108" x2="150" y2="72"/><line x1="114" y1="108" x2="78" y2="72"/>
-                  <line x1="135" y1="122" x2="168" y2="132"/><line x1="135" y1="122" x2="156" y2="86"/>
-                  <line x1="128" y1="148" x2="148" y2="178"/><line x1="100" y1="148" x2="80" y2="178"/>
-                  <line x1="93" y1="122" x2="56" y2="86"/><line x1="150" y1="72" x2="156" y2="86"/>
-                  <line x1="78" y1="72" x2="56" y2="86"/>
+                {/* Seam lines — clean and visible */}
+                <g clipPath="url(#hb)" stroke="#1a1a1a" strokeWidth="1.4" fill="none" strokeLinecap="round">
+                  <polygon points="44,32 54,39 50,53 38,53 34,39"/>
+                  <line x1="44" y1="32" x2="59" y2="30"/>
+                  <line x1="44" y1="32" x2="29" y2="30"/>
+                  <line x1="54" y1="39" x2="66" y2="40"/>
+                  <line x1="50" y1="53" x2="56" y2="62"/>
+                  <line x1="38" y1="53" x2="32" y2="62"/>
+                  <line x1="34" y1="39" x2="22" y2="40"/>
                 </g>
-                <g clipPath="url(#hb)" stroke="#22c55e" strokeWidth="1.2" fill="none" opacity="0.5">
-                  <ellipse cx="114" cy="130" rx="106" ry="22"/>
-                  <ellipse cx="114" cy="130" rx="22" ry="106"/>
+                {/* Circuit lines */}
+                <g clipPath="url(#hb)" stroke="#22c55e" strokeWidth="0.9" fill="none" opacity="0.45">
+                  <ellipse cx="44" cy="44" rx="40" ry="10"/>
+                  <ellipse cx="44" cy="44" rx="10" ry="40"/>
                 </g>
-                <circle cx="114" cy="130" r="106" fill="url(#hsh)"/>
-                <circle cx="114" cy="24" r="5" fill="#4ade80" opacity="0.9"/>
-                <ellipse cx="80" cy="82" rx="28" ry="18" fill="white" opacity="0.28"/>
+                {/* Shadow */}
+                <circle cx="44" cy="44" r="40" fill="url(#hsh)"/>
+                {/* Highlight */}
+                <ellipse cx="28" cy="26" rx="14" ry="10" fill="white" opacity="0.3"/>
+                <ellipse cx="24" cy="22" rx="6" ry="4" fill="white" opacity="0.2"/>
+                {/* Top LED node */}
+                <circle cx="44" cy="4" r="2.5" fill="#4ade80" opacity="0.9"/>
               </svg>
             </div>
               <div>
