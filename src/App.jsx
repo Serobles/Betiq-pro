@@ -341,8 +341,12 @@ function Historial() {
   const loadFromStorage = () => {
     try {
       const r = localStorage.getItem("betscore_historial");
-      if (r) setRecords(JSON.parse(r));
-      else setRecords([]);
+      if (r) {
+        const parsed = JSON.parse(r);
+        // Ordenar siempre por id desc (más reciente primero)
+        parsed.sort((a, b) => (b.id || 0) - (a.id || 0));
+        setRecords(parsed);
+      } else setRecords([]);
     } catch { setRecords([]); }
     setLoaded(true);
   };
@@ -354,8 +358,9 @@ function Historial() {
   }, []);
 
   const save = async (newRecs) => {
-    try { localStorage.setItem("betscore_historial", JSON.stringify(newRecs)); } catch {}
-    setRecords(newRecs);
+    const sorted = [...newRecs].sort((a, b) => (b.id || 0) - (a.id || 0));
+    try { localStorage.setItem("betscore_historial", JSON.stringify(sorted)); } catch {}
+    setRecords(sorted);
   };
 
   const updateResult = async (id, resultado) => {
@@ -685,7 +690,8 @@ export default function BetIQProV3() {
       ganancia_unidades: null,
       categoria: "premium",
     };
-    const serialized = JSON.stringify([newRecord, ...prev]);
+    const allRecs = [newRecord, ...prev].sort((a, b) => (b.id || 0) - (a.id || 0));
+    const serialized = JSON.stringify(allRecs);
     localStorage.setItem(KEY, serialized);
     window.dispatchEvent(new StorageEvent("storage", { key: KEY, newValue: serialized }));
     setGuardadoId(id);
