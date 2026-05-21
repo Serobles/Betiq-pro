@@ -104,8 +104,7 @@ function ScoreBar({ local, visitante }) {
 }
 
 function MercadoCard({ m, partido, rank, bank = 0, onGuardar, guardadoId }) {
-  const yaGuardado = guardadoId && m._savedId === guardadoId;
-  const [guardado, setGuardado] = React.useState(false);
+  const [guardado, setGuardado] = useState(false);
   const rankColors = { 1: C.accent, 2: C.blue, 3: C.dim };
   const rankLabels = { 1: "🥇 MEJOR VALOR", 2: "🥈 ALTERNATIVA", 3: "🥉 OPCIÓN 3" };
   return (
