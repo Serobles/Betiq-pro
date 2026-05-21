@@ -106,7 +106,7 @@ function ScoreBar({ local, visitante }) {
 function MercadoCard({ m, partido, rank, bank = 0, onGuardar, guardadoId }) {
   const [guardado, setGuardado] = useState(false);
   const rankColors = { 1: C.accent, 2: C.blue, 3: C.dim };
-  const rankLabels = { 1: "🥇 MEJOR VALOR", 2: "🥈 ALTERNATIVA", 3: "🥉 OPCIÓN 3" };
+  const rankLabels = { 1: "🥇 MEJOR VALOR", 2: "🥈 OPCIÓN 2", 3: "🥉 OPCIÓN 3" };
   return (
     <div style={{
       background: m.recomendado ? `linear-gradient(135deg, ${C.card2}, #0f2027)` : C.card2,
