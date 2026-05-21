@@ -1169,8 +1169,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                   </div>
 
                   {/* ── STAKE SUGERIDO — solo admin ── */}
-                  {!IS_USER_MODE &&
-                  {(() => {
+                  {!IS_USER_MODE && (() => {
                     const sk = calcStake(data.top_apuesta?.ev, data.top_apuesta?.nivel_confianza);
                     const monto = ((bank * sk.pct) / 100).toFixed(2);
                     return (
