@@ -103,7 +103,9 @@ function ScoreBar({ local, visitante }) {
   );
 }
 
-function MercadoCard({ m, partido, rank, bank = 0 }) {
+function MercadoCard({ m, partido, rank, bank = 0, onGuardar, guardadoId }) {
+  const yaGuardado = guardadoId && m._savedId === guardadoId;
+  const [guardado, setGuardado] = React.useState(false);
   const rankColors = { 1: C.accent, 2: C.blue, 3: C.dim };
   const rankLabels = { 1: "🥇 MEJOR VALOR", 2: "🥈 ALTERNATIVA", 3: "🥉 OPCIÓN 3" };
   return (
@@ -154,6 +156,24 @@ function MercadoCard({ m, partido, rank, bank = 0 }) {
           </div>
         );
       })()}
+
+      {/* Botón guardar en historial */}
+      {onGuardar && (
+        <button
+          onClick={() => { onGuardar(m); setGuardado(true); }}
+          style={{
+            marginTop: 12, width: "100%", padding: "9px",
+            background: guardado ? "#14532d" : "linear-gradient(135deg,#16a34a,#22c55e)",
+            color: "#fff", border: "none", borderRadius: 8,
+            fontWeight: 700, fontSize: 13, cursor: guardado ? "default" : "pointer",
+            opacity: guardado ? 0.85 : 1,
+            boxShadow: guardado ? "none" : "0 2px 10px rgba(34,197,94,0.3)",
+            transition: "all .2s"
+          }}
+        >
+          {guardado ? "✅ Guardado en Historial" : "💾 Guardar esta apuesta en Historial"}
+        </button>
+      )}
     </div>
   );
 }
@@ -622,6 +642,8 @@ export default function BetIQProV3() {
   }
   const [form, setForm] = useState({ local: "", visitante: "" });
   const [bank, setBank] = useState(1000);
+  const [savedAnalysis, setSavedAnalysis] = useState(null);
+  const [guardadoId, setGuardadoId] = useState(null);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState("");
   const [data, setData] = useState(null);
@@ -630,6 +652,45 @@ export default function BetIQProV3() {
   const [postMode, setPostMode] = useState("telegram");
   const [copied, setCopied] = useState(false);
   const [mainTab, setMainTab] = useState("analizar");
+
+  const guardarEnHistorial = (mercado) => {
+    if (!savedAnalysis) return;
+    const KEY = "betscore_historial";
+    let prev = [];
+    try { prev = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch {}
+    const id = Date.now();
+    const newRecord = {
+      id,
+      fecha_analisis: new Date().toLocaleDateString("es-CO"),
+      hora_analisis: new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }),
+      partido: savedAnalysis.local + " vs " + savedAnalysis.visitante,
+      local: savedAnalysis.local,
+      visitante: savedAnalysis.visitante,
+      competicion: savedAnalysis.competicion,
+      fecha_partido: savedAnalysis.fecha_partido,
+      mercado_1: String(mercado.nombre || "—"),
+      desc_1: String(mercado.descripcion || "—"),
+      cuota_1: Number(mercado.cuota) || 0,
+      ev_1: Number(parseFloat(((mercado.ev || 0) * 100).toFixed(1))) || 0,
+      confianza_1: String(mercado.nivel_confianza || "—"),
+      fuente_1: String(mercado.cuota_fuente || "Estimada"),
+      prob_local: savedAnalysis.prob_local,
+      prob_empate: savedAnalysis.prob_empate,
+      prob_visitante: savedAnalysis.prob_visitante,
+      bajas_local: savedAnalysis.bajas_local,
+      bajas_visitante: savedAnalysis.bajas_visitante,
+      resultado: "PENDIENTE",
+      apuesta_jugada: String(mercado.nombre || "—"),
+      cuota_jugada: Number(mercado.cuota) || 0,
+      monto_apostado: 0,
+      ganancia_unidades: null,
+      categoria: "premium",
+    };
+    const serialized = JSON.stringify([newRecord, ...prev]);
+    localStorage.setItem(KEY, serialized);
+    window.dispatchEvent(new StorageEvent("storage", { key: KEY, newValue: serialized }));
+    setGuardadoId(id);
+  };
 
   const analyze = async () => {
     if (!form.local || !form.visitante) return;
@@ -910,53 +971,19 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
       setData(parsed);
       setTab("mercados");
 
-      // ── Auto-guardar análisis en historial ──────────────────────────
-      try {
-        const KEY = "betscore_historial";
-        let prev = [];
-        try { prev = JSON.parse(localStorage.getItem(KEY) || "[]"); } catch { prev = []; }
-
-        const newRecord = {
-          id: Date.now(),
-          fecha_analisis: new Date().toLocaleDateString("es-CO"),
-          hora_analisis: new Date().toLocaleTimeString("es-CO", { hour: "2-digit", minute: "2-digit" }),
-          partido: String((parsed?.partido?.local || form.local || "") + " vs " + (parsed?.partido?.visitante || form.visitante || "")),
-          local: String(parsed?.partido?.local || form.local || ""),
-          visitante: String(parsed?.partido?.visitante || form.visitante || ""),
-          competicion: String(parsed?.partido?.competicion || "N/D"),
-          fecha_partido: String(parsed?.partido?.fecha || "Próximos días"),
-          mercado_1: String(nombre1 || "—"),
-          desc_1: String(desc1 || "—"),
-          cuota_1: Number(parseFloat(cuota1)) || 0,
-          ev_1: Number(parseFloat(ev1)) || 0,
-          confianza_1: String(conf1 || "—"),
-          fuente_1: String(fuente1 || "Estimada"),
-          mercado_2: String(t2?.nombre || "—"),
-          cuota_2: Number(t2?.cuota) || 0,
-          ev_2: Number(parseFloat(((t2?.ev || 0) * 100).toFixed(1))) || 0,
-          mercado_3: String(t3?.nombre || "—"),
-          cuota_3: Number(t3?.cuota) || 0,
-          ev_3: Number(parseFloat(((t3?.ev || 0) * 100).toFixed(1))) || 0,
-          prob_local: Number(pr?.victoria_local) || 0,
-          prob_empate: Number(pr?.empate) || 0,
-          prob_visitante: Number(pr?.victoria_visitante) || 0,
-          bajas_local: String(bL || "Sin bajas"),
-          bajas_visitante: String(bV || "Sin bajas"),
-          resultado: "PENDIENTE",
-          apuesta_jugada: String(nombre1 || "—"),
-          cuota_jugada: Number(parseFloat(cuota1)) || 0,
-          monto_apostado: 0,
-          ganancia_unidades: null,
-          categoria: "premium",
-        };
-
-        const serialized = JSON.stringify([newRecord, ...prev]);
-        localStorage.setItem(KEY, serialized);
-        // Notificar al componente Historial si está montado
-        window.dispatchEvent(new StorageEvent("storage", { key: KEY, newValue: serialized }));
-      } catch (saveErr) {
-        console.error("Auto-save historial error:", saveErr);
-      }
+      // ── Guardar snapshot del análisis para permitir guardar desde cada mercado ──
+      setSavedAnalysis({
+        partido: parsed?.partido,
+        local: parsed?.partido?.local || form.local || "",
+        visitante: parsed?.partido?.visitante || form.visitante || "",
+        competicion: parsed?.partido?.competicion || "N/D",
+        fecha_partido: parsed?.partido?.fecha || "Próximos días",
+        prob_local: Number(pr?.victoria_local) || 0,
+        prob_empate: Number(pr?.empate) || 0,
+        prob_visitante: Number(pr?.victoria_visitante) || 0,
+        bajas_local: String(bL || "Sin bajas"),
+        bajas_visitante: String(bV || "Sin bajas"),
+      });
     } catch (e) {
       clearInterval(iv);
       setError("Error: " + e.message + " — Intenta de nuevo.");
@@ -1198,7 +1225,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                   <div>
                     <div style={{ fontWeight: 700, fontSize: 14, color: C.accent, marginBottom: 14 }}>🥇 Top 3 Mercados por Valor Esperado</div>
                     <div style={{ display: "grid", gap: 14, marginBottom: 24 }}>
-                      {top3.map(m => <MercadoCard key={m.nombre} m={m} partido={data.partido} rank={m.ranking} bank={bank} />)}
+                      {top3.map(m => <MercadoCard key={m.nombre} m={m} partido={data.partido} rank={m.ranking} bank={bank} onGuardar={guardarEnHistorial} guardadoId={guardadoId} />)}
                     </div>
                     {otros.length > 0 && (
                       <>
