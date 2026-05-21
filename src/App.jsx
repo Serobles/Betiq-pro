@@ -6,6 +6,12 @@ import {
   LineChart, Line
 } from "recharts";
 
+// ── Modo de la app: controla qué funciones se muestran ──
+// Admin: ve todo. User: sin pestaña Post.
+// Se activa con ?mode=user en la URL para la versión de usuarios.
+const IS_USER_MODE = typeof window !== "undefined" &&
+  new URLSearchParams(window.location?.search || "").get("mode") === "user";
+
 const C = {
   bg:       "#0d1b2a",
   card:     "#162436",
@@ -1162,7 +1168,8 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                     ))}
                   </div>
 
-                  {/* ── STAKE SUGERIDO ── */}
+                  {/* ── STAKE SUGERIDO — solo admin ── */}
+                  {!IS_USER_MODE &&
                   {(() => {
                     const sk = calcStake(data.top_apuesta?.ev, data.top_apuesta?.nivel_confianza);
                     const monto = ((bank * sk.pct) / 100).toFixed(2);
@@ -1215,7 +1222,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
 
                 {/* TABS ANÁLISIS */}
                 <div style={{ display: "flex", gap: 4, marginBottom: 20, background: C.card, borderRadius: 10, padding: 4, border: `1px solid ${C.border}` }}>
-                  {[["mercados", "📌 Mercados"], ["factores", "⚖️ Factores"], ["bajas", "🏥 Bajas"], ["graficas", "📊 Gráficas"], ["post", "📱 Post"]].map(([k, l]) => (
+                  {([["mercados", "📌 Mercados"], ["factores", "⚖️ Factores"], ["bajas", "🏥 Bajas"], ["graficas", "📊 Gráficas"], ...(!IS_USER_MODE ? [["post", "📱 Post"]] : [])]).map(([k, l]) => (
                     <button key={k} onClick={() => setTab(k)} style={{
                       flex: 1, background: tab === k ? C.accent : "transparent",
                       color: tab === k ? "#fff" : C.muted,
@@ -1407,7 +1414,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 )}
 
                 {/* POST TAB */}
-                {tab === "post" && (
+                {!IS_USER_MODE && tab === "post" && (
                   <div>
                     <div style={{ display: "flex", gap: 4, marginBottom: 16, background: C.card, borderRadius: 8, padding: 4, border: `1px solid ${C.border}` }}>
                       {[["telegram", "📱 Telegram"], ["whatsapp", "💬 WhatsApp"]].map(([k, l]) => (
