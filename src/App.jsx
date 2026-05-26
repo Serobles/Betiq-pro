@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, saveAnalysisCache, checkAndIncrementAnalysis, loadHistorialSupabase, saveHistorialSupabase, PLAN_LIMITS } from './supabase.js';
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -650,6 +651,34 @@ export default function BetIQProV3() {
     document.body.style.margin = "0";
     document.documentElement.style.background = "#0d1b2a";
   }
+
+  // ── Auth state ──────────────────────────────────────────
+  const [user, setUser]       = useState(null);
+  const [profile, setProfile] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  useEffect(() => {
+    if (!supabase) { setAuthLoading(false); return; }
+    // Sesión actual
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user || null);
+      if (session?.user) loadProfile(session.user.id);
+      setAuthLoading(false);
+    });
+    // Listener de cambios de auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+      if (session?.user) loadProfile(session.user.id);
+      else setProfile(null);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const loadProfile = async (userId) => {
+    if (!supabase) return;
+    const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+    setProfile(data);
+  };
   const [form, setForm] = useState({ local: "", visitante: "" });
   const [bank, setBank] = useState(1000);
   const [savedAnalysis, setSavedAnalysis] = useState(null);
@@ -700,12 +729,43 @@ export default function BetIQProV3() {
     const serialized = JSON.stringify(allRecs);
     localStorage.setItem(KEY, serialized);
     window.dispatchEvent(new StorageEvent("storage", { key: KEY, newValue: serialized }));
+    // ── Sync a Supabase ───────────────────────────────────
+    if (user) saveHistorialSupabase(user.id, newRecord);
     setGuardadoId(id);
   };
 
   const analyze = async () => {
     if (!form.local || !form.visitante) return;
+
+    // ── Verificar límite de plan ──────────────────────────
+    if (supabase && user) {
+      const check = await checkAndIncrementAnalysis(user.id);
+      if (!check.allowed) {
+        setError(`Alcanzaste tu límite de ${check.limite} análisis/día (plan ${check.plan?.toUpperCase()}). Actualiza tu plan para más.`);
+        return;
+      }
+    }
+
+    // ── Verificar caché ───────────────────────────────────
     setLoading(true); setError(""); setData(null);
+    setProgress("⚡ Verificando caché de análisis...");
+    const cached = await getCachedAnalysis(form.local, form.visitante);
+    if (cached) {
+      setData(cached);
+      setSavedAnalysis({
+        local: cached?.partido?.local || form.local,
+        visitante: cached?.partido?.visitante || form.visitante,
+        competicion: cached?.partido?.competicion || "N/D",
+        fecha_partido: cached?.partido?.fecha || "Próximos días",
+        prob_local: cached?.probabilidades_1x2?.victoria_local || 0,
+        prob_empate: cached?.probabilidades_1x2?.empate || 0,
+        prob_visitante: cached?.probabilidades_1x2?.victoria_visitante || 0,
+        bajas_local: "Ver análisis", bajas_visitante: "Ver análisis",
+      });
+      setLoading(false);
+      return;
+    }
+
     const steps = [
       "🔍 Buscando cuotas reales en Bet365/Betfair...",
       "🏥 Verificando lesionados y bajas específicas...",
@@ -982,6 +1042,9 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
       setData(parsed);
       setTab("mercados");
 
+      // ── Guardar en caché Supabase ─────────────────────
+      saveAnalysisCache(form.local, form.visitante, parsed);
+
       // ── Guardar snapshot del análisis para permitir guardar desde cada mercado ──
       setSavedAnalysis({
         partido: parsed?.partido,
@@ -1088,16 +1151,46 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 <div style={{ fontSize: 10, color: C.dim, letterSpacing: ".08em" }}>SPORTS BETTING INTELLIGENCE · IA</div>
               </div>
             </div>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[["analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
-                <button key={k} onClick={() => setMainTab(k)} style={{
-                  background: mainTab === k ? "linear-gradient(135deg,#16a34a,#22c55e)" : "transparent",
-                  color: mainTab === k ? "#fff" : C.muted,
-                  border: `1px solid ${mainTab === k ? "#22c55e" : C.border}`,
-                  boxShadow: mainTab === k ? "0 2px 12px rgba(34,197,94,0.3)" : "none",
+            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+              {[[" analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
+                <button key={k} onClick={() => setMainTab(k.trim())} style={{
+                  background: mainTab === k.trim() ? "linear-gradient(135deg,#16a34a,#22c55e)" : "transparent",
+                  color: mainTab === k.trim() ? "#fff" : C.muted,
+                  border: `1px solid ${mainTab === k.trim() ? "#22c55e" : C.border}`,
+                  boxShadow: mainTab === k.trim() ? "0 2px 12px rgba(34,197,94,0.3)" : "none",
                   borderRadius: 8, padding: "7px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer"
                 }}>{l}</button>
               ))}
+              {/* Auth button */}
+              {supabase && (
+                user ? (
+                  <div style={{ position: "relative" }} onClick={() => logout()}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+                      background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8,
+                      padding: "6px 10px" }}>
+                      {user.user_metadata?.avatar_url
+                        ? <img src={user.user_metadata.avatar_url} style={{ width: 22, height: 22, borderRadius: "50%" }} alt=""/>
+                        : <div style={{ width: 22, height: 22, borderRadius: "50%", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>
+                            {(user.email || "U")[0].toUpperCase()}
+                          </div>}
+                      <div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: PLAN_LIMITS[profile?.plan || "free"]?.color || C.accent }}>
+                          {PLAN_LIMITS[profile?.plan || "free"]?.label || "Free"}
+                        </div>
+                        <div style={{ fontSize: 9, color: C.dim }}>Salir</div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <button onClick={loginGoogle} style={{
+                    background: "#fff", color: "#333", border: "none",
+                    borderRadius: 8, padding: "7px 12px", fontWeight: 700,
+                    fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6
+                  }}>
+                    <span>G</span> Login
+                  </button>
+                )
+              )}
             </div>
           </div>
         </div>
