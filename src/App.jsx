@@ -6,12 +6,11 @@ import {
   LineChart, Line
 } from "recharts";
 
-// ── Modo de la app: lee VITE_MODE desde Vercel (build time) ──
-// betiq-pro-pearl.vercel.app tiene VITE_MODE=user → oculta Post
-// project-f2m4t.vercel.app no tiene VITE_MODE → muestra todo
-const IS_USER_MODE = (() => {
-  try { return import.meta.env.VITE_MODE === "user"; } catch { return false; }
-})();
+// ── Modo: si el hostname es betiq-pro-pearl → app usuario (sin Post) ──
+const IS_USER_MODE = typeof window !== "undefined" && (
+  window.location.hostname.includes("betiq-pro-pearl") ||
+  new URLSearchParams(window.location.search || "").get("mode") === "user"
+);
 
 const C = {
   bg:       "#0d1b2a",
