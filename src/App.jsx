@@ -6,11 +6,12 @@ import {
   LineChart, Line
 } from "recharts";
 
-// ── Modo de la app: controla qué funciones se muestran ──
-// Admin: ve todo. User: sin pestaña Post.
-// Se activa con ?mode=user en la URL para la versión de usuarios.
-const IS_USER_MODE = typeof window !== "undefined" &&
-  new URLSearchParams(window.location?.search || "").get("mode") === "user";
+// ── Modo de la app: lee VITE_MODE desde Vercel (build time) ──
+// betiq-pro-pearl.vercel.app tiene VITE_MODE=user → oculta Post
+// project-f2m4t.vercel.app no tiene VITE_MODE → muestra todo
+const IS_USER_MODE = (() => {
+  try { return import.meta.env.VITE_MODE === "user"; } catch { return false; }
+})();
 
 const C = {
   bg:       "#0d1b2a",
