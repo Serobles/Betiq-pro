@@ -1152,12 +1152,12 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
               </div>
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-              {[[" analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
-                <button key={k} onClick={() => setMainTab(k.trim())} style={{
-                  background: mainTab === k.trim() ? "linear-gradient(135deg,#16a34a,#22c55e)" : "transparent",
-                  color: mainTab === k.trim() ? "#fff" : C.muted,
-                  border: `1px solid ${mainTab === k.trim() ? "#22c55e" : C.border}`,
-                  boxShadow: mainTab === k.trim() ? "0 2px 12px rgba(34,197,94,0.3)" : "none",
+              {[["analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
+                <button key={k} onClick={() => setMainTab(k)} style={{
+                  background: mainTab === k ? "linear-gradient(135deg,#16a34a,#22c55e)" : "transparent",
+                  color: mainTab === k ? "#fff" : C.muted,
+                  border: `1px solid ${mainTab === k ? "#22c55e" : C.border}`,
+                  boxShadow: mainTab === k ? "0 2px 12px rgba(34,197,94,0.3)" : "none",
                   borderRadius: 8, padding: "7px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer"
                 }}>{l}</button>
               ))}
