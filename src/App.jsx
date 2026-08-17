@@ -1082,7 +1082,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
         <div style={{ maxWidth: 920, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <svg width="230" height="72" viewBox="0 0 1600 500" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }} aria-label="BetFut">
+              <svg width="290" height="90" viewBox="0 0 1600 500" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }} aria-label="BetFut">
                 <defs>
                   <clipPath id="bfHeaderClip"><circle cx="100" cy="100" r="84"/></clipPath>
                   <linearGradient id="bfHeaderGrad" x1="0" y1="0" x2="1" y2="0">
