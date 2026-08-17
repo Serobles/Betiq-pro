@@ -1,11 +1,11 @@
-# BETIQ PRO ⚡
+# BetFut ⚡
 
 Plataforma de análisis inteligente de apuestas deportivas con IA + datos reales.
 
 ## Archivos del proyecto
 
 ```
-betiq-project/
+betfut-project/
 ├── index.html
 ├── package.json
 ├── vite.config.js
@@ -21,7 +21,7 @@ betiq-project/
 2. Ve a vercel.com → "Add New Project"
 3. Conecta tu repositorio de GitHub
 4. Vercel detecta Vite automáticamente → clic en "Deploy"
-5. En ~2 minutos tienes tu URL: `https://betiq-pro.vercel.app`
+5. En ~2 minutos tienes tu URL: `https://betfut-pro.vercel.app`
 
 ## Configuración en la app
 
