@@ -1082,7 +1082,57 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
         <div style={{ maxWidth: 920, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
             <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <img src="/betfut-logo.png" alt="BetFut" style={{ height: 44, width: "auto", flexShrink: 0 }} />
+              <svg width="230" height="72" viewBox="0 0 1600 500" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }} aria-label="BetFut">
+                <defs>
+                  <clipPath id="bfHeaderClip"><circle cx="100" cy="100" r="84"/></clipPath>
+                  <linearGradient id="bfHeaderGrad" x1="0" y1="0" x2="1" y2="0">
+                    <stop offset="0" stopColor="#00E676" stopOpacity="1"/>
+                    <stop offset="1" stopColor="#22D3EE" stopOpacity="1"/>
+                  </linearGradient>
+                </defs>
+                <g transform="translate(110 100) scale(1.5)">
+                  <g clipPath="url(#bfHeaderClip)">
+                    <circle cx="100" cy="100" r="84" fill="#F2F7F4"/>
+                    <g stroke="#060F1A" strokeWidth="6" strokeLinecap="round">
+                      <line x1="100" y1="66" x2="100" y2="16"/>
+                      <line x1="132.3" y1="89.5" x2="180.8" y2="73.7"/>
+                      <line x1="120" y1="127.5" x2="150" y2="168.8"/>
+                      <line x1="80" y1="127.5" x2="50" y2="168.8"/>
+                      <line x1="67.7" y1="89.5" x2="19.2" y2="73.7"/>
+                    </g>
+                    <polygon points="100,66 132.3,89.5 120,127.5 80,127.5 67.7,89.5" fill="#060F1A"/>
+                    <g fill="#060F1A">
+                      <polygon points="0,-26 24.7,-8 15.3,21 -15.3,21 -24.7,-8" transform="translate(151.7 28.8) rotate(-144)"/>
+                      <polygon points="0,-26 24.7,-8 15.3,21 -15.3,21 -24.7,-8" transform="translate(183.7 127.2) rotate(-72)"/>
+                      <polygon points="0,-26 24.7,-8 15.3,21 -15.3,21 -24.7,-8" transform="translate(100 188)"/>
+                      <polygon points="0,-26 24.7,-8 15.3,21 -15.3,21 -24.7,-8" transform="translate(16.3 127.2) rotate(72)"/>
+                      <polygon points="0,-26 24.7,-8 15.3,21 -15.3,21 -24.7,-8" transform="translate(48.3 28.8) rotate(144)"/>
+                    </g>
+                    <g fill="none" stroke="#22D3EE" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="100,66 100,44 118,44"/>
+                      <polyline points="132.3,89.5 156,84 156,66"/>
+                      <polyline points="80,127.5 66,148 44,148"/>
+                    </g>
+                    <g fill="#22D3EE">
+                      <circle cx="100" cy="66" r="4.6"/>
+                      <circle cx="132.3" cy="89.5" r="4.6"/>
+                      <circle cx="120" cy="127.5" r="4.6"/>
+                      <circle cx="80" cy="127.5" r="4.6"/>
+                      <circle cx="67.7" cy="89.5" r="4.6"/>
+                      <circle cx="118" cy="44" r="3.2"/>
+                      <circle cx="156" cy="66" r="3.2"/>
+                      <circle cx="44" cy="148" r="3.2"/>
+                    </g>
+                  </g>
+                  <circle cx="100" cy="100" r="84" fill="none" stroke="#F2F7F4" strokeWidth="3"/>
+                </g>
+                <text x="486" y="268" fontFamily="'Bricolage Grotesque', 'Helvetica Neue', Arial, sans-serif" fontWeight="800" fontSize="150" letterSpacing="-6.75" fill="#F2F7F4">Bet<tspan fill="#00E676">Fut</tspan></text>
+                <circle cx="492" cy="308" r="6" fill="#00E676"/>
+                <rect x="518" y="306" width="420" height="4" rx="2" fill="url(#bfHeaderGrad)"/>
+                <rect x="964" y="280" width="112" height="56" rx="10" fill="none" stroke="rgba(34,211,238,0.55)" strokeWidth="2"/>
+                <text x="1020" y="320" textAnchor="middle" fontFamily="'Bitcount Prop Single', 'Courier New', monospace" fontSize="30" fill="#22D3EE">IA</text>
+                <text x="488" y="386" fontFamily="'Bitcount Prop Single', 'Courier New', monospace" fontSize="26" fill="#7E96A8">ANALISIS Y PRONOSTICOS DE FUTBOL</text>
+              </svg>
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               {[["analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
