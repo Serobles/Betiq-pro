@@ -843,7 +843,7 @@ export default function BetFutProV3() {
         const footballRes = await fetch("/api/football", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ local: form.local, visitante: form.visitante, fecha: form.fecha }),
+          body: JSON.stringify({ local: form.local, visitante: form.visitante }),
         });
 
         const footballText = await footballRes.text();

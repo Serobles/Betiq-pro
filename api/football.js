@@ -5,11 +5,21 @@ export default async function handler(req, res) {
 
   res.setHeader("Access-Control-Allow-Origin", "*");
 
-  const { local, visitante, fecha } = req.body;
+  const { local, visitante } = req.body;
   const API_KEY = process.env.API_FOOTBALL_KEY;
 
   if (!API_KEY) {
     return res.status(500).json({ error: "API_FOOTBALL_KEY no configurada" });
+  }
+
+  // ── Validación de entrada ─────────────────────────────────────────
+  const localNombre = typeof local === "string" ? local.trim() : "";
+  const visitanteNombre = typeof visitante === "string" ? visitante.trim() : "";
+
+  if (!localNombre || !visitanteNombre) {
+    return res.status(400).json({
+      error: "Faltan los nombres de los equipos: 'local' y 'visitante' son obligatorios",
+    });
   }
 
   const headers = {
@@ -19,47 +29,57 @@ export default async function handler(req, res) {
 
   const BASE = "https://v3.football.api-sports.io";
 
-  try {
-    // ── 1. Buscar el fixture por equipos y fecha ──────────────────────
-    const fechaISO = fecha
-      ? new Date(fecha.split("/").reverse().join("-")).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0];
+  // Respuesta vacía reutilizable cuando no se puede localizar el partido
+  const vacio = {
+    encontrado: false,
+    fixture: null,
+    lesionados_local: [],
+    lesionados_visitante: [],
+    odds: [],
+    stats_local: null,
+    stats_visitante: null,
+  };
 
-    // Buscar fixture por nombre de equipo local
-    const fixtureRes = await fetch(
-      `${BASE}/fixtures?date=${fechaISO}&timezone=America/Bogota`,
+  try {
+    // ── 1. Resolver el ID de cada equipo por su nombre ────────────────
+    // La búsqueda difusa la hace la propia API, así que no dependemos de
+    // que el nombre escrito coincida literalmente con el de su base.
+    const buscarEquipo = async (nombre) => {
+      const r = await fetch(
+        `${BASE}/teams?search=${encodeURIComponent(nombre)}`,
+        { headers }
+      );
+      const d = await r.json();
+      return d.response?.[0]?.team || null;
+    };
+
+    const [equipoLocal, equipoVisitante] = await Promise.all([
+      buscarEquipo(localNombre),
+      buscarEquipo(visitanteNombre),
+    ]);
+
+    if (!equipoLocal || !equipoVisitante) {
+      const faltante = !equipoLocal ? localNombre : visitanteNombre;
+      return res.status(200).json({
+        ...vacio,
+        mensaje: `Equipo no encontrado en API-Football: "${faltante}". Se usará búsqueda web como respaldo.`,
+      });
+    }
+
+    // ── 2. Próximo enfrentamiento directo entre ambos ─────────────────
+    // Sin fecha ni zona horaria de por medio: la API devuelve el siguiente
+    // partido entre los dos equipos, se juegue el día que se juegue.
+    const h2hRes = await fetch(
+      `${BASE}/fixtures/headtohead?h2h=${equipoLocal.id}-${equipoVisitante.id}&next=1`,
       { headers }
     );
-    const fixtureData = await fixtureRes.json();
-    const fixtures = fixtureData.response || [];
-
-    // Encontrar el partido que coincida con los equipos
-    const normalizar = (s) =>
-      s.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
-
-    const localNorm = normalizar(local);
-    const visitNorm = normalizar(visitante);
-
-    const match = fixtures.find((f) => {
-      const home = normalizar(f.teams?.home?.name || "");
-      const away = normalizar(f.teams?.away?.name || "");
-      return (
-        (home.includes(localNorm) || localNorm.includes(home)) &&
-        (away.includes(visitNorm) || visitNorm.includes(away))
-      );
-    });
+    const h2hData = await h2hRes.json();
+    const match = h2hData.response?.[0];
 
     if (!match) {
-      // Si no encontramos el partido, devolvemos datos vacíos con un aviso
       return res.status(200).json({
-        encontrado: false,
-        mensaje: `Partido no encontrado en API-Football para la fecha ${fechaISO}. Se usará búsqueda web como respaldo.`,
-        fixture: null,
-        lesionados_local: [],
-        lesionados_visitante: [],
-        odds: [],
-        stats_local: null,
-        stats_visitante: null,
+        ...vacio,
+        mensaje: `No hay un próximo enfrentamiento entre ${equipoLocal.name} y ${equipoVisitante.name} en API-Football. Se usará búsqueda web como respaldo.`,
       });
     }
 
@@ -69,7 +89,7 @@ export default async function handler(req, res) {
     const homeTeamId = match.teams.home.id;
     const awayTeamId = match.teams.away.id;
 
-    // ── 2. Llamadas paralelas para máxima velocidad ───────────────────
+    // ── 3. Llamadas paralelas para máxima velocidad ───────────────────
     const [injuriesRes, oddsRes, statsHomeRes, statsAwayRes, standingsRes] =
       await Promise.all([
         // Lesionados del partido
@@ -102,7 +122,7 @@ export default async function handler(req, res) {
         standingsRes.json(),
       ]);
 
-    // ── 3. Procesar lesionados ────────────────────────────────────────
+    // ── 4. Procesar lesionados ────────────────────────────────────────
     const injuries = injuriesData.response || [];
 
     const lesionados_local = injuries
@@ -121,7 +141,7 @@ export default async function handler(req, res) {
         motivo: i.player?.reason,
       }));
 
-    // ── 4. Procesar cuotas Bet365 ─────────────────────────────────────
+    // ── 5. Procesar cuotas Bet365 ─────────────────────────────────────
     const bets = oddsData.response?.[0]?.bookmakers?.[0]?.bets || [];
 
     const odds = bets.map((bet) => ({
@@ -129,7 +149,7 @@ export default async function handler(req, res) {
       valores: bet.values,
     }));
 
-    // ── 5. Procesar estadísticas ──────────────────────────────────────
+    // ── 6. Procesar estadísticas ──────────────────────────────────────
     const sh = statsHomeData.response || null;
     const sv = statsAwayData.response || null;
 
@@ -153,7 +173,7 @@ export default async function handler(req, res) {
       };
     };
 
-    // ── 6. Posición en tabla ──────────────────────────────────────────
+    // ── 7. Posición en tabla ──────────────────────────────────────────
     const allStandings = standingsData.response?.[0]?.league?.standings?.flat() || [];
 
     const posLocal = allStandings.find((t) => t.team?.id === homeTeamId);
