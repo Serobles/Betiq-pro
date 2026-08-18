@@ -42,15 +42,99 @@ export default async function handler(req, res) {
 
   try {
     // ── 1. Resolver el ID de cada equipo por su nombre ────────────────
-    // La búsqueda difusa la hace la propia API, así que no dependemos de
-    // que el nombre escrito coincida literalmente con el de su base.
-    const buscarEquipo = async (nombre) => {
+    // Su base guarda algunos nombres abreviados ("Independ. Rivadavia"),
+    // así que la búsqueda directa puede devolver 0 resultados y hay que
+    // reintentar con las palabras distintivas del nombre.
+
+    const normalizar = (s) =>
+      (s || "")
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9]+/g, " ")
+        .trim();
+
+    // Palabras que no distinguen a un club de otro
+    const GENERICAS = new Set([
+      "fc", "cf", "ca", "cd", "sc", "ac", "afc", "club", "de", "del", "la",
+      "el", "los", "atletico", "athletic", "deportivo", "deportes", "real",
+      "sporting", "union", "united", "city", "san", "santa",
+    ]);
+
+    // Filiales, juveniles y femeninos: casi nunca son el equipo buscado
+    const ES_FILIAL =
+      /(^| )(u1[5-9]|u2[0-3]|sub[0-9]{2}|w|women|femenino|fem|res|reserve|reserves|ii|b)( |$)/;
+
+    const palabrasClave = (nombre) =>
+      normalizar(nombre)
+        .split(" ")
+        .filter((p) => p.length > 2 && !GENERICAS.has(p));
+
+    // Cuenta cuántas palabras del nombre buscado aparecen en el de la API.
+    // Compara por prefijo para que "independiente" case con "Independ.".
+    const puntuar = (nombreApi, claves) => {
+      const palabras = normalizar(nombreApi).split(" ");
+      return claves.reduce((n, c) => {
+        const encaja = palabras.some(
+          (p) =>
+            p === c ||
+            (c.length >= 4 && p.length >= 4 && (p.startsWith(c) || c.startsWith(p)))
+        );
+        return encaja ? n + 1 : n;
+      }, 0);
+    };
+
+    // Gana quien más palabras comparta; penaliza filiales y, a igualdad,
+    // prefiere el nombre más ajustado (evita "Fluminense De Feira").
+    const elegirMejor = (candidatos, claves) => {
+      let mejor = null;
+      let mejorTotal = 0;
+      for (const c of candidatos) {
+        const nombreApi = c.team?.name || "";
+        const aciertos = puntuar(nombreApi, claves);
+        if (aciertos === 0) continue;
+        const norm = normalizar(nombreApi);
+        const total =
+          aciertos - (ES_FILIAL.test(norm) ? 1.5 : 0) - norm.length / 1000;
+        if (total > mejorTotal) {
+          mejorTotal = total;
+          mejor = c.team;
+        }
+      }
+      return mejor;
+    };
+
+    const consultarEquipos = async (termino) => {
       const r = await fetch(
-        `${BASE}/teams?search=${encodeURIComponent(nombre)}`,
+        `${BASE}/teams?search=${encodeURIComponent(termino)}`,
         { headers }
       );
       const d = await r.json();
-      return d.response?.[0]?.team || null;
+      return d.response || [];
+    };
+
+    const buscarEquipo = async (nombre) => {
+      const claves = palabrasClave(nombre);
+      const candidatos = await consultarEquipos(nombre);
+      const directo = elegirMejor(candidatos, claves);
+
+      // Si ya casan todas las palabras del nombre, no hace falta reintentar
+      if (directo && puntuar(directo.name, claves) === claves.length) {
+        return directo;
+      }
+
+      // Reintento con las palabras distintivas (máximo 2 peticiones extra)
+      const porPalabra = await Promise.all(
+        claves.slice(0, 2).map((p) => consultarEquipos(p))
+      );
+
+      const todos = [...candidatos, ...porPalabra.flat()];
+      const unicos = [
+        ...new Map(todos.map((c) => [c.team?.id, c])).values(),
+      ];
+
+      // Último recurso: el primer resultado de la búsqueda directa
+      return elegirMejor(unicos, claves) || directo || candidatos[0]?.team || null;
     };
 
     const [equipoLocal, equipoVisitante] = await Promise.all([
@@ -67,19 +151,31 @@ export default async function handler(req, res) {
     }
 
     // ── 2. Próximo enfrentamiento directo entre ambos ─────────────────
-    // Sin fecha ni zona horaria de por medio: la API devuelve el siguiente
-    // partido entre los dos equipos, se juegue el día que se juegue.
+    // El parámetro `next` no está disponible en todos los planes, así que
+    // se pide el historial completo y se elige aquí el primer partido
+    // cuya fecha esté por delante de ahora.
     const h2hRes = await fetch(
-      `${BASE}/fixtures/headtohead?h2h=${equipoLocal.id}-${equipoVisitante.id}&next=1`,
+      `${BASE}/fixtures/headtohead?h2h=${equipoLocal.id}-${equipoVisitante.id}`,
       { headers }
     );
     const h2hData = await h2hRes.json();
-    const match = h2hData.response?.[0];
+    const enfrentamientos = h2hData.response || [];
+
+    const ahora = Date.now();
+    const match = enfrentamientos
+      .filter((f) => {
+        const t = new Date(f.fixture?.date).getTime();
+        return Number.isFinite(t) && t > ahora;
+      })
+      .sort(
+        (a, b) =>
+          new Date(a.fixture.date).getTime() - new Date(b.fixture.date).getTime()
+      )[0];
 
     if (!match) {
       return res.status(200).json({
         ...vacio,
-        mensaje: `No hay un próximo enfrentamiento entre ${equipoLocal.name} y ${equipoVisitante.name} en API-Football. Se usará búsqueda web como respaldo.`,
+        mensaje: `No hay un próximo enfrentamiento programado entre ${equipoLocal.name} y ${equipoVisitante.name} (se revisaron ${enfrentamientos.length} enfrentamientos anteriores). Se usará búsqueda web como respaldo.`,
       });
     }
 
