@@ -47,10 +47,10 @@ REGLA ABSOLUTA: Tu respuesta debe empezar con ---JSON_START--- y terminar con --
 
 El JSON tiene exactamente esta estructura (reemplaza los valores de ejemplo con datos reales del partido):
 ---JSON_START---
-{"partido":{"local":"EQUIPO_LOCAL","visitante":"EQUIPO_VISITANTE","competicion":"LIGA","fecha":"FECHA","estadio":"ESTADIO"},"mercados_analizados":[{"nombre":"1X2 Victoria Local","descripcion":"gana el equipo local","cuota":1.45,"cuota_fuente":"Bet365","prob_real":72,"prob_implicita":69,"ev":0.04,"nivel_confianza":70,"recomendado":false,"ranking":4,"razon":"cuota sin valor suficiente"},{"nombre":"Doble Oportunidad 1X","descripcion":"local gana o empata","cuota":1.20,"cuota_fuente":"Bet365","prob_real":85,"prob_implicita":83,"ev":0.02,"nivel_confianza":82,"recomendado":false,"ranking":5,"razon":"sin valor por cuota baja"},{"nombre":"BTTS Si","descripcion":"ambos equipos marcan","cuota":1.75,"cuota_fuente":"Bet365","prob_real":60,"prob_implicita":57,"ev":0.05,"nivel_confianza":60,"recomendado":false,"ranking":6,"razon":"valor moderado"},{"nombre":"Mas de 2.5 Goles","descripcion":"partido termina con 3 o mas goles","cuota":1.65,"cuota_fuente":"Bet365","prob_real":65,"prob_implicita":61,"ev":0.07,"nivel_confianza":63,"recomendado":false,"ranking":7,"razon":"buen promedio goles"},{"nombre":"Menos de 2.5 Goles","descripcion":"partido termina con 2 o menos goles","cuota":2.10,"cuota_fuente":"Bet365","prob_real":35,"prob_implicita":48,"ev":-0.27,"nivel_confianza":35,"recomendado":false,"ranking":8,"razon":"sin valor"},{"nombre":"Mas de 1.5 Goles","descripcion":"partido termina con 2 o mas goles","cuota":1.25,"cuota_fuente":"Bet365","prob_real":82,"prob_implicita":80,"ev":0.03,"nivel_confianza":80,"recomendado":true,"ranking":3,"razon":"alta probabilidad cuota baja"},{"nombre":"Handicap Asiatico -1.5","descripcion":"equipo local gana por 2 o mas","cuota":1.90,"cuota_fuente":"Bet365","prob_real":58,"prob_implicita":53,"ev":0.10,"nivel_confianza":65,"recomendado":true,"ranking":2,"razon":"buen valor por diferencia nivel"},{"nombre":"Corners mas de 9.5","descripcion":"mas de 9 corners en el partido","cuota":1.85,"cuota_fuente":"Estimada","prob_real":62,"prob_implicita":54,"ev":0.15,"nivel_confianza":68,"recomendado":true,"ranking":1,"razon":"mayor valor esperado del partido"}],"top_apuesta":{"mercado":"Corners mas de 9.5","descripcion":"mas de 9 corners en el partido","cuota":1.85,"cuota_fuente":"Estimada","prob_real":62,"prob_implicita":54,"ev":0.15,"nivel_confianza":68,"nivel_riesgo":"MEDIO","razon_ejecutiva":"Este mercado ofrece el mayor valor esperado del partido con probabilidad real superior a la implicita en la cuota."},"probabilidades_1x2":{"victoria_local":55,"empate":25,"victoria_visitante":20},"bajas":{"local":[{"nombre":"Jugador Ejemplo","posicion":"DC","es_titular":true}],"visitante":[]},"factores":{"forma_local":70,"forma_visitante":40,"presion_local":60,"motivacion_local":75,"motivacion_visitante":50,"cansancio_local":25,"cansancio_visitante":35},"puntos_clave":["El equipo local lleva 8 partidos invicto en casa","El visitante no gana fuera desde hace 5 jornadas","Diferencia de 20 puntos en la tabla"],"analisis_general":"El equipo local es favorito claro. El mercado de corners ofrece el mejor valor del encuentro."}
+{"partido":{"local":"EQUIPO_LOCAL","visitante":"EQUIPO_VISITANTE","competicion":"LIGA","fecha":"FECHA","estadio":"ESTADIO"},"mercados_analizados":[{"nombre":"1X2 Victoria Local","descripcion":"gana el equipo local","cuota":1.45,"cuota_fuente":"Bet365","prob_real":72,"prob_implicita":69,"ev":0.04,"nivel_confianza":70,"recomendado":false,"ranking":6,"razon":"cuota sin valor suficiente"},{"nombre":"Doble Oportunidad 1X","descripcion":"local gana o empata","cuota":1.20,"cuota_fuente":"Bet365","prob_real":85,"prob_implicita":83,"ev":0.02,"nivel_confianza":82,"recomendado":false,"ranking":8,"razon":"sin valor por cuota baja"},{"nombre":"Draw No Bet Local","descripcion":"gana el local y si empatan devuelven la apuesta","cuota":1.35,"cuota_fuente":"Bet365","prob_real":78,"prob_implicita":74,"ev":0.05,"nivel_confianza":75,"recomendado":false,"ranking":5,"razon":"cubre el empate con valor moderado"},{"nombre":"Ambos Marcan Si","descripcion":"ambos equipos marcan","cuota":1.75,"cuota_fuente":"Bet365","prob_real":60,"prob_implicita":57,"ev":0.05,"nivel_confianza":60,"recomendado":false,"ranking":7,"razon":"valor moderado"},{"nombre":"Goles Over LINEA","descripcion":"mas goles que la linea que aparece en las cuotas reales","cuota":1.65,"cuota_fuente":"Bet365","prob_real":65,"prob_implicita":61,"ev":0.07,"nivel_confianza":63,"recomendado":true,"ranking":3,"razon":"buen promedio de goles de ambos"},{"nombre":"Goles Under LINEA","descripcion":"menos goles que la linea que aparece en las cuotas reales","cuota":2.10,"cuota_fuente":"Bet365","prob_real":35,"prob_implicita":48,"ev":-0.27,"nivel_confianza":35,"recomendado":false,"ranking":9,"razon":"sin valor"},{"nombre":"Handicap Asiatico Local LINEA","descripcion":"local con la linea de handicap que aparece en las cuotas reales","cuota":1.90,"cuota_fuente":"Bet365","prob_real":58,"prob_implicita":53,"ev":0.10,"nivel_confianza":65,"recomendado":true,"ranking":2,"razon":"buen valor por diferencia de nivel"},{"nombre":"Corners Over LINEA","descripcion":"mas corners que la linea que aparece en las cuotas reales","cuota":1.85,"cuota_fuente":"Bet365","prob_real":62,"prob_implicita":54,"ev":0.15,"nivel_confianza":68,"recomendado":true,"ranking":1,"razon":"mayor valor esperado del partido"},{"nombre":"Tarjetas Over LINEA","descripcion":"mas tarjetas que la linea que aparece en las cuotas reales","cuota":1.70,"cuota_fuente":"Bet365","prob_real":58,"prob_implicita":59,"ev":-0.01,"nivel_confianza":55,"recomendado":false,"ranking":4,"razon":"cuota ajustada al riesgo"}],"top_apuesta":{"nombre":"NOMBRE_DEL_MERCADO_CON_MAYOR_EV","descripcion":"descripcion del mercado elegido con su linea real","cuota":1.85,"cuota_fuente":"Bet365","prob_real":62,"prob_implicita":54,"ev":0.15,"nivel_confianza":68,"nivel_riesgo":"MEDIO","razon_ejecutiva":"Este mercado ofrece el mayor valor esperado del partido con probabilidad real superior a la implicita en la cuota."},"probabilidades_1x2":{"victoria_local":55,"empate":25,"victoria_visitante":20},"bajas":{"local":[{"nombre":"Jugador Ejemplo","posicion":"DC","es_titular":true}],"visitante":[]},"factores":{"forma_local":70,"forma_visitante":40,"presion_local":60,"motivacion_local":75,"motivacion_visitante":50,"cansancio_local":25,"cansancio_visitante":35},"puntos_clave":["El equipo local lleva 8 partidos invicto en casa","El visitante no gana fuera desde hace 5 jornadas","Diferencia de 20 puntos en la tabla"],"analisis_general":"El equipo local es favorito claro. El mercado de corners ofrece el mejor valor del encuentro."}
 ---JSON_END---
 
-INSTRUCCION FINAL: Copia exactamente esa estructura JSON pero con los datos REALES del partido. No uses comillas dobles dentro de los valores de texto. Usa solo letras, numeros, espacios y puntos en los campos de texto.`;
+INSTRUCCION FINAL: Copia exactamente esa estructura JSON pero con los datos REALES del partido. No uses comillas dobles dentro de los valores de texto. Usa solo letras, numeros, espacios y puntos en los campos de texto. Donde el nombre de un mercado incluya la palabra LINEA, sustituyela por la linea numerica EXACTA que aparezca en las CUOTAS CLAVE de los datos reales; nunca inventes una linea que no este en esas cuotas.`;
 
 
 // ── Calcular stake sugerido según EV y confianza ──────────────────────
@@ -856,43 +856,75 @@ export default function BetFutProV3() {
       if (footballData?.encontrado) {
         // Construir resumen estructurado con datos reales de API-Football
         const f = footballData;
-        const odds_bet365 = f.odds?.find(o => o.mercado === "Match Winner")?.valores || [];
-        const cuota_local = odds_bet365.find(v => v.value === "Home")?.odd || "No disponible";
-        const cuota_empate = odds_bet365.find(v => v.value === "Draw")?.odd || "No disponible";
-        const cuota_visit = odds_bet365.find(v => v.value === "Away")?.odd || "No disponible";
-
         const formatLesionados = (lista) =>
           lista.length > 0
             ? lista.map(l => `${l.nombre} (${l.posicion || "N/D"}) — ${l.motivo || "Lesionado"}`).join(", ")
             : "Sin lesionados confirmados en API-Football";
 
+        // Forma, tabla y promedios en una linea compacta por equipo
+        const formatStats = (s, pos) => {
+          if (!s && !pos) return "Sin datos estadisticos disponibles";
+          return [
+            `Pos:${pos?.pos ?? "N/D"} Pts:${pos?.pts ?? "N/D"} Forma:${s?.forma || pos?.forma || "N/D"}`,
+            `PJ:${s?.partidos_jugados ?? 0} G:${s?.ganados ?? 0} E:${s?.empatados ?? 0} P:${s?.perdidos ?? 0}`,
+            `GF:${s?.goles_favor ?? 0} GC:${s?.goles_contra ?? 0} (prom ${s?.promedio_goles_favor ?? "N/D"} a favor / ${s?.promedio_goles_contra ?? "N/D"} en contra)`,
+            `Racha max ${s?.mayor_racha_victorias ?? 0}V ${s?.mayor_racha_derrotas ?? 0}D`,
+            `Goles 1a parte:${s?.goles_primer_tiempo ?? 0}`,
+          ].join(" | ");
+        };
+
+        // Mercados que el analisis necesita, con las lineas que interesan de
+        // cada uno. Se seleccionan por NOMBRE, no por posicion en la respuesta:
+        // la API devuelve ~99 mercados en orden arbitrario.
+        const MERCADOS_CLAVE = [
+          { etiqueta: "1X2",                nombres: ["Match Winner"],       lineas: ["Home", "Draw", "Away"] },
+          { etiqueta: "Doble Oportunidad",  nombres: ["Double Chance"],      lineas: ["Home/Draw", "Home/Away", "Draw/Away"] },
+          // API-Football publica el Draw No Bet bajo el nombre "Home/Away"
+          { etiqueta: "Draw No Bet",        nombres: ["Draw No Bet", "Home/Away"], lineas: ["Home", "Away"] },
+          { etiqueta: "Ambos Marcan",       nombres: ["Both Teams Score"],   lineas: ["Yes", "No"] },
+          { etiqueta: "Goles Over/Under",   nombres: ["Goals Over/Under"],   lineas: ["Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5"] },
+          { etiqueta: "Handicap Asiatico",  nombres: ["Asian Handicap"],     lineas: ["Home -0.5", "Away -0.5", "Home -0.25", "Away -0.25", "Home 0", "Away 0"] },
+          { etiqueta: "Corners Over/Under", nombres: ["Corners Over Under"], lineas: ["Over 8.5", "Under 8.5", "Over 9.5", "Under 9.5", "Over 10.5", "Under 10.5"] },
+          { etiqueta: "Tarjetas Over/Under", nombres: ["Cards Over/Under"],  lineas: ["Over 3.5", "Under 3.5", "Over 4.5", "Under 4.5", "Over 5.5", "Under 5.5"] },
+        ];
+
+        const MAX_VALORES = 6;
+
+        const bloqueCuotas = MERCADOS_CLAVE
+          .map(({ etiqueta, nombres, lineas }) => {
+            // Fallback 1: el mercado puede publicarse con otro nombre
+            const m = (f.odds || []).find(o => nombres.includes(o.mercado));
+            if (!m?.valores?.length) return null;
+            // Fallback 2: si ninguna linea casa (las lineas varian por partido),
+            // se cogen los primeros valores en vez de descartar el mercado
+            const casan = m.valores.filter(v => lineas.includes(v.value));
+            const vals = (casan.length ? casan : m.valores).slice(0, MAX_VALORES);
+            return `- ${etiqueta}: ${vals.map(v => `${v.value}=${v.odd}`).join(", ")}`;
+          })
+          .filter(Boolean)
+          .join("\n") || "Sin cuotas disponibles";
+
         searchData = `DATOS REALES DE API-FOOTBALL (verificados):
 
 PARTIDO: ${f.fixture?.local?.nombre} vs ${f.fixture?.visitante?.nombre}
-LIGA: ${f.fixture?.liga} (${f.fixture?.pais})
-FECHA: ${f.fixture?.fecha}
-ESTADIO: ${f.fixture?.estadio}, ${f.fixture?.ciudad}
-ÁRBITRO: ${f.fixture?.arbitro || "Por confirmar"}
+LIGA: ${f.fixture?.liga} (${f.fixture?.pais}) | FECHA: ${f.fixture?.fecha}
 
-CUOTAS REALES BET365:
-- ${f.fixture?.local?.nombre} gana: ${cuota_local}
-- Empate: ${cuota_empate}
-- ${f.fixture?.visitante?.nombre} gana: ${cuota_visit}
+FORMA Y ESTADISTICAS — ${f.fixture?.local?.nombre?.toUpperCase()} (LOCAL):
+${formatStats(f.stats_local, f.posicion_local)}
 
-MERCADOS BET365 (top 5):
-${(f.odds || []).slice(0, 5).map(o => "- " + (o.mercado||"") + ": " + (o.valores||[]).slice(0,4).map(v => (v.value||"") + "=" + (v.odd||"")).join(", ")).join("\n") || "Sin datos"}
-LESIONADOS ${f.fixture?.local?.nombre?.toUpperCase()}:
+FORMA Y ESTADISTICAS — ${f.fixture?.visitante?.nombre?.toUpperCase()} (VISITANTE):
+${formatStats(f.stats_visitante, f.posicion_visitante)}
+
+CUOTAS CLAVE BET365 (usa EXACTAMENTE estas lineas, no inventes otras):
+${bloqueCuotas}
+
+BAJAS ${f.fixture?.local?.nombre?.toUpperCase()}:
 ${formatLesionados(f.lesionados_local)}
 
-LESIONADOS ${f.fixture?.visitante?.nombre?.toUpperCase()}:
+BAJAS ${f.fixture?.visitante?.nombre?.toUpperCase()}:
 ${formatLesionados(f.lesionados_visitante)}
 
-STATS ${f.fixture?.local?.nombre?.toUpperCase()}:
-Forma:${f.stats_local?.forma||"N/D"} PJ:${f.stats_local?.partidos_jugados||0} G:${f.stats_local?.ganados||0} E:${f.stats_local?.empatados||0} P:${f.stats_local?.perdidos||0} GF:${f.stats_local?.goles_favor||0} GC:${f.stats_local?.goles_contra||0} Pos:${f.posicion_local?.pos||"N/D"} Pts:${f.posicion_local?.pts||"N/D"}
-
-STATS ${f.fixture?.visitante?.nombre?.toUpperCase()}:
-Forma:${f.stats_visitante?.forma||"N/D"} PJ:${f.stats_visitante?.partidos_jugados||0} G:${f.stats_visitante?.ganados||0} E:${f.stats_visitante?.empatados||0} P:${f.stats_visitante?.perdidos||0} GF:${f.stats_visitante?.goles_favor||0} GC:${f.stats_visitante?.goles_contra||0} Pos:${f.posicion_visitante?.pos||"N/D"} Pts:${f.posicion_visitante?.pts||"N/D"}
-
+CONTEXTO: ${f.fixture?.estadio || "N/D"}, ${f.fixture?.ciudad || "N/D"} | Arbitro: ${f.fixture?.arbitro || "Por confirmar"}
 FUENTE: API-Football (datos oficiales en tiempo real)`;
 
         setProgress("✅ Datos reales obtenidos — Generando análisis con IA...");
@@ -913,9 +945,9 @@ forma reciente, estadísticas y contexto de ambos equipos. Usa cuotas estimadas 
           content: `Partido: ${form.local} vs ${form.visitante} | Fecha: ${"Próximos días"}
 
 DATOS REALES DE API-FOOTBALL:
-${searchData.slice(0, 1200)}
+${searchData.slice(0, 2500)}
 
-FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto extra. Analiza 8 mercados. Cuota minima #1: 1.40.`
+FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto extra. Analiza 9 mercados. Cuota minima #1: 1.40.`
         }],
         false,
         4000,
