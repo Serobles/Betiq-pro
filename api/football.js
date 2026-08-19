@@ -54,11 +54,12 @@ export default async function handler(req, res) {
         .replace(/[^a-z0-9]+/g, " ")
         .trim();
 
-    // Palabras que no distinguen a un club de otro
+    // Palabras que no distinguen a un club de otro. Ojo: atletico, real,
+    // deportivo y sporting NO van aqui — en España son justo lo que separa
+    // al Atletico del Real Madrid.
     const GENERICAS = new Set([
       "fc", "cf", "ca", "cd", "sc", "ac", "afc", "club", "de", "del", "la",
-      "el", "los", "atletico", "athletic", "deportivo", "deportes", "real",
-      "sporting", "union", "united", "city", "san", "santa",
+      "el", "los", "union", "united", "city", "san", "santa",
     ]);
 
     // Filiales, juveniles y femeninos: casi nunca son el equipo buscado
@@ -70,22 +71,31 @@ export default async function handler(req, res) {
         .split(" ")
         .filter((p) => p.length > 2 && !GENERICAS.has(p));
 
-    // Cuenta cuántas palabras del nombre buscado aparecen en el de la API.
-    // Compara por prefijo para que "independiente" case con "Independ.".
-    const puntuar = (nombreApi, claves) => {
-      const palabras = normalizar(nombreApi).split(" ");
-      return claves.reduce((n, c) => {
-        const encaja = palabras.some(
-          (p) =>
-            p === c ||
-            (c.length >= 4 && p.length >= 4 && (p.startsWith(c) || c.startsWith(p)))
-        );
-        return encaja ? n + 1 : n;
-      }, 0);
+    // Una palabra del nombre buscado (c) casa con una de la API (p) si son
+    // iguales, si la API la abrevia ("Independ." por "Independiente") o si la
+    // alarga con un sufijo minimo. Lo que NO vale es que solo compartan el
+    // principio: "madridtas" no es "madrid".
+    const casaPalabra = (p, c) => {
+      if (p === c) return true;
+      // La API abrevia: p es prefijo de c y conserva la mayor parte
+      if (c.startsWith(p) && p.length >= 5 && p.length / c.length >= 0.6) return true;
+      // La API alarga: solo se admiten hasta 2 caracteres de mas
+      if (p.startsWith(c) && c.length >= 5 && p.length - c.length <= 2) return true;
+      return false;
     };
 
-    // Gana quien más palabras comparta; penaliza filiales y, a igualdad,
-    // prefiere el nombre más ajustado (evita "Fluminense De Feira").
+    const puntuar = (nombreApi, claves) => {
+      const palabras = normalizar(nombreApi).split(" ");
+      return claves.reduce(
+        (n, c) => (palabras.some((p) => casaPalabra(p, c)) ? n + 1 : n),
+        0
+      );
+    };
+
+    // Gana quien mas palabras del nombre buscado encuentre. A igualdad de
+    // aciertos gana el candidato cuyo propio nombre queda mejor explicado por
+    // esas palabras: "Atletico Madrid" (2 de 2) por delante de "Real Madrid"
+    // (1 de 2). La longitud solo desempata al final.
     const elegirMejor = (candidatos, claves) => {
       let mejor = null;
       let mejorTotal = 0;
@@ -94,8 +104,12 @@ export default async function handler(req, res) {
         const aciertos = puntuar(nombreApi, claves);
         if (aciertos === 0) continue;
         const norm = normalizar(nombreApi);
+        const cobertura = Math.min(1, aciertos / norm.split(" ").length);
         const total =
-          aciertos - (ES_FILIAL.test(norm) ? 1.5 : 0) - norm.length / 1000;
+          aciertos +
+          cobertura * 0.5 -
+          (ES_FILIAL.test(norm) ? 1.5 : 0) -
+          norm.length / 10000;
         if (total > mejorTotal) {
           mejorTotal = total;
           mejor = c.team;
