@@ -105,8 +105,21 @@ export default async function handler(req, res) {
           // hora salen directos del propio texto ISO.
           fecha: f.fixture.date.slice(0, 10),
           hora: f.fixture.date.slice(11, 16),
+          // Unix en segundos. Es lo que decide la ventana de 24h: no depende
+          // de zona horaria ni de parsear texto.
+          timestamp: f.fixture.timestamp,
           local: f.teams.home.name,
           visitante: f.teams.away.name,
+          // `goals` es el marcador vigente en CUALQUIER estado, en vivo
+          // incluido; score.fulltime solo se rellena cuando acaba.
+          goles_local: f.goals.home,
+          goles_visitante: f.goals.away,
+          // El ganador ya viene resuelto por la API. En empate los dos
+          // llegan como null, asi que ninguno queda en negrita.
+          gana_local: f.teams.home.winner === true,
+          gana_visitante: f.teams.away.winner === true,
+          estado: f.fixture.status.short,
+          minuto: f.fixture.status.elapsed,
         }));
       })
     );

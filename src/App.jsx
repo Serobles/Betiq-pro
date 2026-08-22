@@ -376,6 +376,85 @@ const ZONA_NAVEGADOR =
 
 const ETIQUETA_DIA = ["Anteayer", "Ayer", "Hoy", "Manana", "Pasado manana"];
 
+// Estados que devuelve API-Football, agrupados por como se pintan. Los
+// codigos salen de un barrido real: en una sola jornada aparecen NS, FT,
+// 1H, HT, 2H, PST, CANC y AWD.
+const FINALIZADO = new Set(["FT", "AET", "PEN"]);
+const EN_JUEGO = new Set(["1H", "HT", "2H", "ET", "BT", "P"]);
+const PROGRAMADO = new Set(["NS", "TBD"]);
+const SIN_JUGARSE = { PST: "Aplazado", CANC: "Cancelado", AWD: "Perdida tecnica" };
+
+const VENTANA_MS = 24 * 60 * 60 * 1000;
+const BLOQUEADO_TITULO = "Disponible 24 horas antes";
+const BLOQUEADO_TEXTO =
+  "Nuestra IA analiza cada partido con toda la informacion disponible de ambos equipos, verificando y explorando las mejores cuotas posibles para entregarte el pronostico mas profesional.";
+
+// Un mismo criterio para la tarjeta y para el pie de la seccion: si se
+// calculara en dos sitios podrian acabar diciendo cosas distintas.
+const estaBloqueado = (p) =>
+  PROGRAMADO.has(p.estado) && p.timestamp * 1000 - Date.now() > VENTANA_MS;
+
+const chipS = {
+  fontSize: 11, fontWeight: 700, color: C.muted, background: C.card2,
+  border: `1px solid ${C.border}`, borderRadius: 999, padding: "3px 9px", whiteSpace: "nowrap",
+};
+
+const PartidoFila = ({ p }) => {
+  const marcador = `${p.goles_local ?? "-"} - ${p.goles_visitante ?? "-"}`;
+
+  let derecha = null;
+
+  if (FINALIZADO.has(p.estado)) {
+    derecha = <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>{marcador}</span>;
+  } else if (EN_JUEGO.has(p.estado)) {
+    derecha = (
+      <span style={{ fontSize: 14, fontWeight: 800, color: C.green, whiteSpace: "nowrap" }}>
+        {marcador}
+        <span style={{ fontSize: 11, color: C.accent, marginLeft: 6 }}>
+          {p.minuto != null ? `${p.minuto}'` : "en juego"}
+        </span>
+      </span>
+    );
+  } else if (SIN_JUGARSE[p.estado]) {
+    derecha = <span style={chipS}>{SIN_JUGARSE[p.estado]}</span>;
+  } else if (PROGRAMADO.has(p.estado)) {
+    // Bloqueado: solo el titulo. La explicacion va una vez al pie de la
+    // seccion, no repetida en cada tarjeta.
+    derecha = estaBloqueado(p) ? (
+      <span style={chipS}>🔒 {BLOQUEADO_TITULO}</span>
+    ) : (
+      <button
+        onClick={() => console.log("Ver analisis (pendiente paso 2B):", p.id, p.local, "vs", p.visitante)}
+        style={{
+          fontSize: 12, fontWeight: 800, color: "#fff", border: "none", borderRadius: 8,
+          padding: "7px 12px", cursor: "pointer", whiteSpace: "nowrap",
+          background: "linear-gradient(135deg,#16a34a,#22c55e)",
+        }}
+      >
+        Ver analisis
+      </button>
+    );
+  } else {
+    // Cualquier codigo no contemplado se muestra tal cual en vez de colarse
+    // por la rama de "programado" y acabar con un boton que no toca.
+    derecha = <span style={chipS}>{p.estado}</span>;
+  }
+
+  return (
+    <div style={{ padding: "6px 2px 6px 10px" }}>
+      <div style={{ display: "grid", gridTemplateColumns: "52px 1fr auto", gap: 10, alignItems: "center" }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{p.hora}</span>
+        <div style={{ fontSize: 13, color: C.text }}>
+          <span style={{ fontWeight: p.gana_local ? 800 : 400 }}>{p.local}</span>
+          <span style={{ color: C.dim }}> vs </span>
+          <span style={{ fontWeight: p.gana_visitante ? 800 : 400 }}>{p.visitante}</span>
+        </div>
+        {derecha}
+      </div>
+    </div>
+  );
+};
+
 const Calendario = () => {
   const [dias, setDias] = useState(null);
   const [zona, setZona] = useState(ZONA_NAVEGADOR);
@@ -413,6 +492,10 @@ const Calendario = () => {
       timeZone: "UTC", weekday: "long", day: "numeric", month: "long",
     }).format(new Date(`${fecha}T12:00:00Z`));
 
+  const hayBloqueados = (dias || []).some((d) =>
+    d.ligas.some((g) => g.partidos.some(estaBloqueado))
+  );
+
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18, flexWrap: "wrap", gap: 8 }}>
@@ -446,20 +529,23 @@ const Calendario = () => {
             d.ligas.map((g) => (
               <div key={g.liga} style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.blue, padding: "4px 2px" }}>{g.liga}</div>
-                {g.partidos.map((p) => (
-                  <div key={p.id} style={{
-                    display: "grid", gridTemplateColumns: "52px 1fr", gap: 10,
-                    alignItems: "center", padding: "5px 2px 5px 10px",
-                  }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{p.hora}</span>
-                    <div style={{ fontSize: 13, color: C.text }}>{p.local} <span style={{ color: C.dim }}>vs</span> {p.visitante}</div>
-                  </div>
-                ))}
+                {g.partidos.map((p) => <PartidoFila key={p.id} p={p} />)}
               </div>
             ))
           )}
         </div>
       ))}
+
+      {/* La explicacion del bloqueo va aqui, una sola vez, y solo si hay
+          alguna tarjeta bloqueada a la vista. */}
+      {!cargando && !error && hayBloqueados && (
+        <div style={{
+          marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.border}`,
+          fontSize: 11, color: C.dim, lineHeight: 1.5,
+        }}>
+          🔒 {BLOQUEADO_TEXTO}
+        </div>
+      )}
     </div>
   );
 };
