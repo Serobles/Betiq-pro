@@ -374,8 +374,6 @@ function TransaccionCard({ r, onResult, onDelete, onUpdateField, records, save }
 const ZONA_NAVEGADOR =
   Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 
-const ETIQUETA_DIA = ["Anteayer", "Ayer", "Hoy", "Manana", "Pasado manana"];
-
 // Estados que devuelve API-Football, agrupados por como se pintan. Los
 // codigos salen de un barrido real: en una sola jornada aparecen NS, FT,
 // 1H, HT, 2H, PST, CANC y AWD.
@@ -462,6 +460,9 @@ const Calendario = ({ onAnalizar, analizandoId }) => {
   // Ligas que no respondieron. Sin esto desapareceran de la lista en silencio
   // y pareceria que ese dia no tienen partidos.
   const [ligasCaidas, setLigasCaidas] = useState([]);
+  // Indice 2 = hoy, porque la ventana va de anteayer a pasado manana.
+  const [diaSel, setDiaSel] = useState(2);
+  const pestanaActiva = useRef(null);
   const [zona, setZona] = useState(ZONA_NAVEGADOR);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -496,14 +497,26 @@ const Calendario = ({ onAnalizar, analizandoId }) => {
 
   // El dia llega como "2026-08-22". Se formatea anclado a mediodia UTC para
   // que ninguna zona lo desplace al dia de al lado.
-  const titulo = (fecha) =>
-    new Intl.DateTimeFormat("es", {
-      timeZone: "UTC", weekday: "long", day: "numeric", month: "long",
-    }).format(new Date(`${fecha}T12:00:00Z`));
+  // Las fechas llegan como "2026-08-23". Se anclan a mediodia UTC para que
+  // ninguna zona las desplace al dia de al lado al formatearlas.
+  const enUTC = (fecha, opts) =>
+    new Intl.DateTimeFormat("es", { timeZone: "UTC", ...opts })
+      .format(new Date(`${fecha}T12:00:00Z`));
 
-  const hayBloqueados = (dias || []).some((d) =>
-    d.ligas.some((g) => g.partidos.some(estaBloqueado))
+  const diaCorto = (fecha) => enUTC(fecha, { weekday: "short" }).replace(".", "").toUpperCase();
+  const fechaCorta = (fecha) => enUTC(fecha, { day: "numeric", month: "short" }).replace(".", "");
+
+  // Solo importa lo que se esta viendo: la explicacion del bloqueo se pinta si
+  // hay tarjetas bloqueadas en el dia elegido, no en cualquiera de los cinco.
+  const visible = (dias || [])[diaSel];
+  const hayBloqueados = Boolean(
+    visible && visible.ligas.some((g) => g.partidos.some(estaBloqueado))
   );
+
+  // Con 5 pestanas en un telefono, "hoy" nace fuera de pantalla. Se centra.
+  useEffect(() => {
+    pestanaActiva.current?.scrollIntoView({ inline: "center", block: "nearest" });
+  }, [diaSel, dias]);
 
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
@@ -530,22 +543,54 @@ const Calendario = ({ onAnalizar, analizandoId }) => {
         </div>
       )}
 
-      {!cargando && !error && (dias || []).map((d, i) => (
-        <div key={d.fecha} style={{ marginBottom: i < 4 ? 18 : 0 }}>
-          <div style={{
-            display: "flex", alignItems: "baseline", gap: 8,
-            borderBottom: `1px solid ${C.border}`, paddingBottom: 6, marginBottom: 8,
-          }}>
-            <span style={{ fontWeight: 800, fontSize: 13, color: i === 2 ? C.accent : C.text }}>
-              {ETIQUETA_DIA[i]}
-            </span>
-            <span style={{ fontSize: 12, color: C.dim, textTransform: "capitalize" }}>{titulo(d.fecha)}</span>
+      {!cargando && !error && dias && (
+        <>
+          {/* Fila de dias. Se desliza a lo ancho: en un telefono las 5
+              pestanas no caben, y comprimirlas las dejaria ilegibles. */}
+          <style>{`.cal-dias::-webkit-scrollbar { display: none; }`}</style>
+          <div
+            className="cal-dias"
+            style={{
+              display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none",
+              WebkitOverflowScrolling: "touch",
+              borderBottom: `1px solid ${C.border}`,
+              paddingBottom: 10, marginBottom: 14,
+            }}
+          >
+            {dias.map((d, i) => {
+              const activa = i === diaSel;
+              const hoy = i === 2;
+              return (
+                <button
+                  key={d.fecha}
+                  ref={activa ? pestanaActiva : null}
+                  onClick={() => setDiaSel(i)}
+                  style={{
+                    flex: "0 0 auto", minWidth: 76,
+                    display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                    padding: "8px 12px", borderRadius: 9, cursor: "pointer",
+                    background: activa ? "linear-gradient(135deg,#16a34a,#22c55e)" : C.card2,
+                    border: `1px solid ${activa ? "#22c55e" : C.border}`,
+                    color: activa ? "#fff" : C.muted,
+                  }}
+                >
+                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".04em", whiteSpace: "nowrap" }}>
+                    {hoy ? "HOY" : diaCorto(d.fecha)}
+                  </span>
+                  <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", opacity: activa ? 0.95 : 0.8 }}>
+                    {fechaCorta(d.fecha)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {d.ligas.length === 0 ? (
+          {/* Solo el dia elegido. El agrupado por liga y las tarjetas no
+              cambian: lo unico nuevo es que se filtra a un dia a la vez. */}
+          {visible && visible.ligas.length === 0 ? (
             <div style={{ fontSize: 12, color: C.dim, padding: "6px 2px" }}>No hay partidos</div>
           ) : (
-            d.ligas.map((g) => (
+            (visible?.ligas || []).map((g) => (
               <div key={g.liga} style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.blue, padding: "4px 2px" }}>{g.liga}</div>
                 {g.partidos.map((p) => (
@@ -559,8 +604,8 @@ const Calendario = ({ onAnalizar, analizandoId }) => {
               </div>
             ))
           )}
-        </div>
-      ))}
+        </>
+      )}
 
       {/* La explicacion del bloqueo va aqui, una sola vez, y solo si hay
           alguna tarjeta bloqueada a la vista. */}
