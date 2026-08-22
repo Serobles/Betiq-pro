@@ -29,6 +29,130 @@ export default async function handler(req, res) {
 
   const BASE = "https://v3.football.api-sports.io";
 
+  // ── Deteccion de errores de API-Football ──────────────────────────
+  // La API avisa de casi todos los fallos con HTTP 200 y un campo `errors`
+  // en el cuerpo. Trampa importante: cuando NO hay error, `errors` llega
+  // como array VACIO ([]), que en JS es truthy — por eso un `if (d.errors)`
+  // da siempre positivo y no sirve para detectar nada. Solo hay error real
+  // si es un objeto con claves o un array con elementos.
+  const erroresDe = (d) => {
+    const e = d?.errors;
+    if (!e) return null;
+    if (typeof e === "string") return e.trim() ? { general: e } : null;
+    if (Array.isArray(e)) return e.length ? { general: e.join(" ") } : null;
+    if (typeof e === "object") return Object.keys(e).length ? e : null;
+    return null;
+  };
+
+  const TIPOS = {
+    LIMITE: "limite_peticiones",
+    CLAVE: "clave_invalida",
+    PLAN: "plan_insuficiente",
+    PARAMETRO: "parametro_invalido",
+    DESCONOCIDO: "error_api",
+  };
+
+  // Traduce el `errors` de la API a un motivo concreto. Los casos se
+  // distinguen por la CLAVE del error (que es estable) y solo se recurre al
+  // texto como refuerzo. Formas verificadas contra la API real:
+  //   clave mala      -> HTTP 403 + { token: "Invalid API key..." }
+  //   parametro malo  -> HTTP 200 + { search: "The Search field must be..." }
+  //   endpoint malo   -> HTTP 200 + { endpoint: "The ... does not exist." }
+  // Cuota y plan siguen las claves documentadas (`requests`, `plan`) y el
+  // HTTP 429 del limite por minuto.
+  const clasificar = (errores, status) => {
+    const claves = Object.keys(errores).map((k) => k.toLowerCase());
+    const texto = Object.values(errores).join(" ").toLowerCase();
+    const detalle = Object.entries(errores)
+      .map(([k, v]) => (k === "general" ? v : `${k}: ${v}`))
+      .join(" | ");
+
+    if (
+      status === 429 ||
+      claves.includes("requests") ||
+      /request limit|rate limit|too many requests/.test(texto)
+    ) {
+      return {
+        tipo: TIPOS.LIMITE,
+        mensaje: `Se alcanzo el limite de peticiones de API-Football (${detalle}). No es que falten datos del partido: la cuenta no puede consultar mas por ahora.`,
+      };
+    }
+
+    if (
+      status === 401 ||
+      status === 403 ||
+      claves.includes("token") ||
+      /api key|application key/.test(texto)
+    ) {
+      return {
+        tipo: TIPOS.CLAVE,
+        mensaje: `API-Football rechazo la clave de acceso (${detalle}). Revisa la variable API_FOOTBALL_KEY.`,
+      };
+    }
+
+    if (claves.includes("plan") || /subscription plan|your plan/.test(texto)) {
+      return {
+        tipo: TIPOS.PLAN,
+        mensaje: `El plan contratado de API-Football no permite esta consulta (${detalle}).`,
+      };
+    }
+
+    if (claves.includes("endpoint")) {
+      return {
+        tipo: TIPOS.PARAMETRO,
+        mensaje: `API-Football no reconoce el endpoint solicitado (${detalle}).`,
+      };
+    }
+
+    return {
+      tipo: TIPOS.PARAMETRO,
+      mensaje: `API-Football rechazo la peticion por un parametro no admitido (${detalle}).`,
+    };
+  };
+
+  class ErrorApiFootball extends Error {
+    constructor({ tipo, mensaje, endpoint }) {
+      super(mensaje);
+      this.name = "ErrorApiFootball";
+      this.tipo = tipo;
+      this.endpoint = endpoint;
+    }
+  }
+
+  // Unico punto por el que se habla con la API: centraliza el parseo y
+  // convierte cualquier `errors` en una excepcion tipada, para que un fallo
+  // de la API no pueda disfrazarse mas de "no hay datos".
+  const pedir = async (ruta) => {
+    const r = await fetch(`${BASE}${ruta}`, { headers });
+
+    let d;
+    try {
+      d = await r.json();
+    } catch {
+      throw new ErrorApiFootball({
+        tipo: TIPOS.DESCONOCIDO,
+        mensaje: `API-Football devolvio una respuesta ilegible (HTTP ${r.status}).`,
+        endpoint: ruta,
+      });
+    }
+
+    const errores = erroresDe(d);
+    if (errores) {
+      const { tipo, mensaje } = clasificar(errores, r.status);
+      throw new ErrorApiFootball({ tipo, mensaje, endpoint: ruta });
+    }
+
+    if (!r.ok) {
+      throw new ErrorApiFootball({
+        tipo: TIPOS.DESCONOCIDO,
+        mensaje: `API-Football respondio HTTP ${r.status} sin detallar el motivo.`,
+        endpoint: ruta,
+      });
+    }
+
+    return d;
+  };
+
   // Respuesta vacía reutilizable cuando no se puede localizar el partido
   const vacio = {
     encontrado: false,
@@ -119,11 +243,10 @@ export default async function handler(req, res) {
     };
 
     const consultarEquipos = async (termino) => {
-      const r = await fetch(
-        `${BASE}/teams?search=${encodeURIComponent(termino)}`,
-        { headers }
-      );
-      const d = await r.json();
+      // La API exige 3 caracteres en `search`: filtrar aqui evita gastar una
+      // peticion para que la respuesta sea un error de parametro.
+      if (!termino || termino.length < 3) return [];
+      const d = await pedir(`/teams?search=${encodeURIComponent(termino)}`);
       return d.response || [];
     };
 
@@ -168,11 +291,9 @@ export default async function handler(req, res) {
     // El parámetro `next` no está disponible en todos los planes, así que
     // se pide el historial completo y se elige aquí el primer partido
     // cuya fecha esté por delante de ahora.
-    const h2hRes = await fetch(
-      `${BASE}/fixtures/headtohead?h2h=${equipoLocal.id}-${equipoVisitante.id}`,
-      { headers }
+    const h2hData = await pedir(
+      `/fixtures/headtohead?h2h=${equipoLocal.id}-${equipoVisitante.id}`
     );
-    const h2hData = await h2hRes.json();
     const enfrentamientos = h2hData.response || [];
 
     const ahora = Date.now();
@@ -200,59 +321,101 @@ export default async function handler(req, res) {
     const awayTeamId = match.teams.away.id;
 
     // ── 3. Llamadas paralelas para máxima velocidad ───────────────────
-    const [injuriesRes, oddsRes, statsHomeRes, statsAwayRes, standingsRes] =
-      await Promise.all([
-        // Lesionados del partido
-        fetch(`${BASE}/injuries?fixture=${fixtureId}`, { headers }),
-        // Cuotas de casas de apuestas (Bet365 = bookmaker 8)
-        fetch(`${BASE}/odds?fixture=${fixtureId}&bookmaker=8`, { headers }),
-        // Estadísticas del equipo local en la liga
-        fetch(
-          `${BASE}/teams/statistics?team=${homeTeamId}&league=${leagueId}&season=${season}`,
-          { headers }
-        ),
-        // Estadísticas del equipo visitante
-        fetch(
-          `${BASE}/teams/statistics?team=${awayTeamId}&league=${leagueId}&season=${season}`,
-          { headers }
-        ),
-        // Tabla de posiciones
-        fetch(
-          `${BASE}/standings?league=${leagueId}&season=${season}`,
-          { headers }
-        ),
-      ]);
+    // Estas cinco consultas enriquecen el partido ya localizado. Si una falla
+    // por un parametro concreto se sigue adelante sin ella, pero se deja
+    // constancia en `avisos`: un hueco por error NO debe leerse como un dato
+    // confirmado. Un fallo de cuota, clave o plan si aborta, porque afecta a
+    // todas por igual y devolver huecos seria mentir sobre el partido.
+    const avisos = [];
+
+    const pedirOpcional = async (ruta, etiqueta) => {
+      try {
+        return await pedir(ruta);
+      } catch (e) {
+        if (!(e instanceof ErrorApiFootball)) throw e;
+        if (
+          e.tipo === TIPOS.LIMITE ||
+          e.tipo === TIPOS.CLAVE ||
+          e.tipo === TIPOS.PLAN
+        ) {
+          throw e;
+        }
+        avisos.push(`${etiqueta}: ${e.message}`);
+        return null;
+      }
+    };
 
     const [injuriesData, oddsData, statsHomeData, statsAwayData, standingsData] =
       await Promise.all([
-        injuriesRes.json(),
-        oddsRes.json(),
-        statsHomeRes.json(),
-        statsAwayRes.json(),
-        standingsRes.json(),
+        // Lesionados del partido
+        pedirOpcional(`/injuries?fixture=${fixtureId}`, "Lesionados"),
+        // Cuotas de casas de apuestas (Bet365 = bookmaker 8)
+        pedirOpcional(`/odds?fixture=${fixtureId}&bookmaker=8`, "Cuotas"),
+        // Estadísticas del equipo local en la liga
+        pedirOpcional(
+          `/teams/statistics?team=${homeTeamId}&league=${leagueId}&season=${season}`,
+          "Estadisticas del local"
+        ),
+        // Estadísticas del equipo visitante
+        pedirOpcional(
+          `/teams/statistics?team=${awayTeamId}&league=${leagueId}&season=${season}`,
+          "Estadisticas del visitante"
+        ),
+        // Tabla de posiciones
+        pedirOpcional(`/standings?league=${leagueId}&season=${season}`, "Tabla de posiciones"),
       ]);
 
     // ── 4. Procesar lesionados ────────────────────────────────────────
-    const injuries = injuriesData.response || [];
+    // La duplicacion viene de origen: /injuries?fixture= devuelve CADA fila
+    // repetida tal cual. Comprobado sobre 24 partidos de las cinco grandes
+    // ligas: 318 filas para 159 jugadores reales, factor 2.00x exacto en
+    // todos, sin una sola discrepancia de type/reason entre las copias.
+    // Tampoco se arregla afinando la peticion — añadir team, league o season
+    // a la query devuelve el mismo 2.00x — asi que no hay forma de pedirle a
+    // la API que no duplique. Por eso se colapsa aqui, al ENTRAR el dato y
+    // por identidad de jugador, en vez de limpiar el texto ya formateado.
+    const injuries = injuriesData?.response || [];
 
-    const lesionados_local = injuries
-      .filter((i) => i.team?.id === homeTeamId)
-      .map((i) => ({
-        nombre: i.player?.name,
-        posicion: i.player?.type,
-        motivo: i.player?.reason,
-      }));
+    // Una baja confirmada pesa mas que una duda. No se han observado copias
+    // discrepantes, pero si algun dia llegan nos quedamos con la peor y con
+    // la que traiga motivo concreto, no con la que llegue primero.
+    const GRAVEDAD = { "missing fixture": 2, questionable: 1 };
+    const gravedadDe = (r) => GRAVEDAD[normalizar(r.player?.type)] ?? 0;
+    const tieneMotivo = (r) => Boolean((r.player?.reason || "").trim());
 
-    const lesionados_visitante = injuries
-      .filter((i) => i.team?.id === awayTeamId)
-      .map((i) => ({
-        nombre: i.player?.name,
-        posicion: i.player?.type,
-        motivo: i.player?.reason,
+    const prevalece = (nuevo, previo) => {
+      const dg = gravedadDe(nuevo) - gravedadDe(previo);
+      if (dg !== 0) return dg > 0;
+      return tieneMotivo(nuevo) && !tieneMotivo(previo);
+    };
+
+    // player.id es el identificador estable (presente en las 318 filas de la
+    // muestra). El nombre normalizado solo actua de red de seguridad si la
+    // API lo omitiera, para no agrupar a dos jugadores bajo un mismo
+    // "undefined".
+    const identidad = (r) =>
+      `${r.team?.id ?? "sin-equipo"}:${r.player?.id ?? `n:${normalizar(r.player?.name)}`}`;
+
+    const lesionadosDe = (teamId) => {
+      const porJugador = new Map();
+      for (const r of injuries) {
+        if (r.team?.id !== teamId) continue;
+        const clave = identidad(r);
+        const previo = porJugador.get(clave);
+        if (!previo || prevalece(r, previo)) porJugador.set(clave, r);
+      }
+      return [...porJugador.values()].map((r) => ({
+        nombre: r.player?.name,
+        posicion: r.player?.type,
+        motivo: r.player?.reason,
       }));
+    };
+
+    const lesionados_local = lesionadosDe(homeTeamId);
+    const lesionados_visitante = lesionadosDe(awayTeamId);
 
     // ── 5. Procesar cuotas Bet365 ─────────────────────────────────────
-    const bets = oddsData.response?.[0]?.bookmakers?.[0]?.bets || [];
+    const bets = oddsData?.response?.[0]?.bookmakers?.[0]?.bets || [];
 
     const odds = bets.map((bet) => ({
       mercado: bet.name,
@@ -260,8 +423,8 @@ export default async function handler(req, res) {
     }));
 
     // ── 6. Procesar estadísticas ──────────────────────────────────────
-    const sh = statsHomeData.response || null;
-    const sv = statsAwayData.response || null;
+    const sh = statsHomeData?.response || null;
+    const sv = statsAwayData?.response || null;
 
     const procesar_stats = (s) => {
       if (!s) return null;
@@ -284,7 +447,7 @@ export default async function handler(req, res) {
     };
 
     // ── 7. Posición en tabla ──────────────────────────────────────────
-    const allStandings = standingsData.response?.[0]?.league?.standings?.flat() || [];
+    const allStandings = standingsData?.response?.[0]?.league?.standings?.flat() || [];
 
     const posLocal = allStandings.find((t) => t.team?.id === homeTeamId);
     const posVisit = allStandings.find((t) => t.team?.id === awayTeamId);
@@ -322,11 +485,32 @@ export default async function handler(req, res) {
       posicion_visitante: posVisit
         ? { pos: posVisit.rank, pts: posVisit.points, forma: posVisit.form }
         : null,
+      // Bloques que la API rechazo. Si esto no esta vacio, los huecos
+      // correspondientes son "no se pudo consultar", no "no hay nada".
+      avisos,
+      lesionados_disponibles: injuriesData !== null,
     });
   } catch (error) {
+    // Fallo identificado de la API (cuota, clave, plan, parametro). Se
+    // responde 200 a proposito: el frontend solo lee el cuerpo cuando la
+    // respuesta es ok, y aqui lo que importa es que el motivo real llegue
+    // entero en vez de perderse tras un 5xx.
+    if (error instanceof ErrorApiFootball) {
+      return res.status(200).json({
+        ...vacio,
+        error_api: true,
+        tipo_error: error.tipo,
+        endpoint: error.endpoint,
+        mensaje: `${error.message} Se usara busqueda web como respaldo.`,
+      });
+    }
+
+    // Fallo no atribuible a la API (red caida, bug propio).
     return res.status(500).json({
       error: error.message,
       encontrado: false,
+      error_api: false,
+      tipo_error: "fallo_interno",
       mensaje: "Error consultando API-Football. Se usará búsqueda web como respaldo.",
     });
   }
