@@ -389,6 +389,16 @@ const BLOQUEADO_TEXTO =
 
 // Un mismo criterio para la tarjeta y para el pie de la seccion: si se
 // calculara en dos sitios podrian acabar diciendo cosas distintas.
+// Id de ancla estable para la seccion de una liga ("Perú · Primera División"
+// -> "peru-primera-division"). Lo usan la cabecera en el calendario y el
+// panel lateral de la vista de analisis.
+const slugLiga = (nombre) =>
+  (nombre || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-");
+
 const estaBloqueado = (p) =>
   PROGRAMADO.has(p.estado) && p.timestamp * 1000 - Date.now() > VENTANA_MS;
 
@@ -455,7 +465,7 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
   );
 };
 
-const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoPartido, onObjetivoCumplido }) => {
+const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll, onObjetivoCumplido }) => {
   const [dias, setDias] = useState(null);
   // Ligas que no respondieron. Sin esto desapareceran de la lista en silencio
   // y pareceria que ese dia no tienen partidos.
@@ -522,11 +532,14 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoPartid
   // la tarjeta ya no exista: un objetivo rancio no debe re-desplazar la
   // pantalla al cambiar de pestana mas tarde.
   useEffect(() => {
-    if (!objetivoPartido || !dias) return;
-    document.getElementById(`partido-${objetivoPartido}`)
-      ?.scrollIntoView({ block: "center" });
+    if (!objetivoScroll || !dias) return;
+    // Una tarjeta se centra; una seccion de liga se pone arriba, para que
+    // debajo se vean sus partidos y no media pantalla de la liga anterior.
+    document.getElementById(objetivoScroll)?.scrollIntoView({
+      block: objetivoScroll.startsWith("liga-") ? "start" : "center",
+    });
     onObjetivoCumplido?.();
-  }, [dias, objetivoPartido]);
+  }, [dias, objetivoScroll]);
 
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
@@ -601,13 +614,15 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoPartid
             <div style={{ fontSize: 12, color: C.dim, padding: "6px 2px" }}>No hay partidos</div>
           ) : (
             (visible?.ligas || []).map((g) => (
-              <div key={g.liga} style={{ marginBottom: 10 }}>
+              <div key={g.liga} id={`liga-${slugLiga(g.liga)}`} style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.blue, padding: "4px 2px" }}>{g.liga}</div>
                 {g.partidos.map((p) => (
                   <PartidoFila
                     key={p.id}
                     p={p}
-                    onAnalizar={onAnalizar}
+                    // Junto al partido viajan las ligas del dia visible: el
+                    // panel lateral de la vista de analisis las lista.
+                    onAnalizar={(pp) => onAnalizar(pp, visible.ligas.map((x) => x.liga))}
                     analizando={analizandoId === p.id}
                   />
                 ))}
@@ -1004,7 +1019,12 @@ export default function BetFutProV3() {
   // De que tarjeta nacio el analisis en curso (null si vino del buscador) y
   // objetivo pendiente de scroll al volver.
   const ultimoFixture = useRef(null);
-  const [objetivoPartido, setObjetivoPartido] = useState(null);
+  // Id del ELEMENTO al que volver en el calendario: "partido-123" (Volver) o
+  // "liga-brasil-serie-a" (panel lateral). Un solo mecanismo para ambos.
+  const [objetivoScroll, setObjetivoScroll] = useState(null);
+  // Ligas con partidos en el dia del analisis en curso, para el panel.
+  // Vacio cuando el analisis nace del buscador (no hay dia de contexto).
+  const [ligasDelDia, setLigasDelDia] = useState([]);
 
   const guardarEnHistorial = (mercado) => {
     if (!savedAnalysis) return;
@@ -1062,6 +1082,7 @@ export default function BetFutProV3() {
 
     setAnalizandoId(fixtureId);
     ultimoFixture.current = fixtureId;
+    if (!fixtureId) setLigasDelDia([]);
 
     // ── Verificar límite de plan ──────────────────────────
     if (supabase && user) {
@@ -1505,11 +1526,19 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
     </>
   );
 
+  // Atajo del panel lateral: volver al calendario (mismo dia, que diaSel
+  // conserva) situado en la seccion de esa liga. Mismo mecanismo que el
+  // Volver del 3C, con el ancla de la liga en vez de la tarjeta.
+  const irALiga = (nombre) => {
+    setObjetivoScroll(`liga-${slugLiga(nombre)}`);
+    setMainTab("analizar");
+  };
+
   const volverAlCalendario = () => {
     // Si el analisis nacio de una tarjeta del calendario se vuelve a ella
     // (el scroll lo hace Calendario cuando los dias estan pintados); si nacio
     // del buscador del pie, arriba como siempre.
-    setObjetivoPartido(ultimoFixture.current);
+    setObjetivoScroll(ultimoFixture.current ? `partido-${ultimoFixture.current}` : null);
     setMainTab("analizar");
     if (!ultimoFixture.current) window.scrollTo({ top: 0 });
   };
@@ -1586,7 +1615,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                   // analisis, no de esta pestana.
                   if (k === "analizar") {
                     setDiaSel(2);
-                    setObjetivoPartido(null);
+                    setObjetivoScroll(null);
                     window.scrollTo({ top: 0, behavior: "smooth" });
                   }
                 }} style={{
@@ -1641,14 +1670,15 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
             {bloqueEstado}
 
             <Calendario
-              onAnalizar={(p) =>
-                analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id })
-              }
+              onAnalizar={(p, ligas) => {
+                setLigasDelDia(ligas || []);
+                analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id });
+              }}
               analizandoId={analizandoId}
               diaSel={diaSel}
               onDiaSel={setDiaSel}
-              objetivoPartido={objetivoPartido}
-              onObjetivoCumplido={() => setObjetivoPartido(null)}
+              objetivoScroll={objetivoScroll}
+              onObjetivoCumplido={() => setObjetivoScroll(null)}
             />
           </>
         )}
@@ -1673,6 +1703,40 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
 
             {bloqueEstado}
 
+            {/* El movil va sin panel por ahora (estilo propio en otro paso):
+                la media query lo saca del flujo y el contenido ocupa todo. */}
+            <style>{`@media (max-width: 767px) { .panel-ligas { display: none; } }`}</style>
+            <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+              {ligasDelDia.length > 0 && (
+                <div
+                  className="panel-ligas"
+                  style={{
+                    flex: "0 0 190px", background: C.card,
+                    border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px",
+                    position: "sticky", top: 12,
+                  }}
+                >
+                  <div style={{ fontSize: 11, fontWeight: 800, color: C.dim, letterSpacing: ".06em", marginBottom: 10 }}>
+                    LIGAS DEL DIA
+                  </div>
+                  {ligasDelDia.map((nombre) => (
+                    <button
+                      key={nombre}
+                      onClick={() => irALiga(nombre)}
+                      style={{
+                        display: "block", width: "100%", textAlign: "left",
+                        background: "transparent", border: "none", cursor: "pointer",
+                        color: C.blue, fontSize: 12, fontWeight: 600,
+                        padding: "6px 4px", borderRadius: 6,
+                      }}
+                    >
+                      {nombre}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div style={{ flex: 1, minWidth: 0 }}>
             {data && (
               <>
                 {/* VEREDICTO PRINCIPAL */}
@@ -1977,6 +2041,8 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 </div>
               </>
             )}
+              </div>
+            </div>
           </>
         )}
 
