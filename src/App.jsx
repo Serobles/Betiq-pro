@@ -1731,7 +1731,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 <div
                   className="panel-ligas"
                   style={{
-                    flex: "0 0 190px", background: C.card,
+                    flex: "0 0 224px", background: C.card,
                     border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px",
                     position: "sticky", top: 12,
                   }}
@@ -1739,20 +1739,40 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                   <div style={{ fontSize: 11, fontWeight: 800, color: C.dim, letterSpacing: ".06em", marginBottom: 10 }}>
                     LIGAS DEL DIA
                   </div>
-                  {ligasDelDia.map((nombre) => (
-                    <button
-                      key={nombre}
-                      onClick={() => irALiga(nombre)}
-                      style={{
-                        display: "block", width: "100%", textAlign: "left",
-                        background: "transparent", border: "none", cursor: "pointer",
-                        color: C.blue, fontSize: 12, fontWeight: 600,
-                        padding: "6px 4px", borderRadius: 6,
-                      }}
-                    >
-                      {nombre}
-                    </button>
-                  ))}
+                  {ligasDelDia.map((nombre) => {
+                    // Dos columnas alineadas: pais | liga. El separador " · "
+                    // viene de los nombres de LIGAS; los torneos ("Copa
+                    // Libertadores") no lo llevan y ocupan la fila entera.
+                    const sep = nombre.indexOf(" · ");
+                    const pais = sep >= 0 ? nombre.slice(0, sep) : null;
+                    const liga = sep >= 0 ? nombre.slice(sep + 3) : nombre;
+                    return (
+                      <button
+                        key={nombre}
+                        onClick={() => irALiga(nombre)}
+                        style={{
+                          // La columna de pais es FIJA para que las ligas
+                          // queden alineadas entre filas; con "auto" cada
+                          // boton mediria la suya y bailarian.
+                          display: "grid", gridTemplateColumns: "66px 1fr",
+                          columnGap: 8, alignItems: "baseline",
+                          width: "100%", textAlign: "left",
+                          background: "transparent", border: "none", cursor: "pointer",
+                          fontSize: 12, fontWeight: 600,
+                          padding: "6px 4px", borderRadius: 6,
+                        }}
+                      >
+                        {pais ? (
+                          <>
+                            <span style={{ color: C.muted, whiteSpace: "nowrap" }}>{pais}</span>
+                            <span style={{ color: C.blue, whiteSpace: "nowrap" }}>{liga}</span>
+                          </>
+                        ) : (
+                          <span style={{ gridColumn: "1 / -1", color: C.blue, whiteSpace: "nowrap" }}>{liga}</span>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
 
