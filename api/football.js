@@ -349,8 +349,10 @@ export default async function handler(req, res) {
       await Promise.all([
         // Lesionados del partido
         pedirOpcional(`/injuries?fixture=${fixtureId}`, "Lesionados"),
-        // Cuotas de casas de apuestas (Bet365 = bookmaker 8)
-        pedirOpcional(`/odds?fixture=${fixtureId}&bookmaker=8`, "Cuotas"),
+        // Cuotas. Se pide SIN filtro de bookmaker: una sola llamada trae las
+        // ~14 casas que cotizan el partido (paging total 1) y de ahi se sacan
+        // las dos que interesan, en vez de gastar una peticion por casa.
+        pedirOpcional(`/odds?fixture=${fixtureId}`, "Cuotas"),
         // Estadísticas del equipo local en la liga
         pedirOpcional(
           `/teams/statistics?team=${homeTeamId}&league=${leagueId}&season=${season}`,
@@ -428,12 +430,87 @@ export default async function handler(req, res) {
     const lesionados_local = lesionadosDe(homeTeamId);
     const lesionados_visitante = lesionadosDe(awayTeamId);
 
-    // ── 5. Procesar cuotas Bet365 ─────────────────────────────────────
-    const bets = oddsData?.response?.[0]?.bookmakers?.[0]?.bets || [];
+    // ── 5. Comparar cuotas de dos casas ───────────────────────────────
+    // Betano acompaña a Bet365 porque cubre bastante mejor corners y
+    // tarjetas en Sudamerica (en Colombia y Peru Bet365 directamente no
+    // cotiza tarjetas). El criterio es conservador: ante dos precios para la
+    // misma apuesta se usa el mas bajo, que es el que menos infla el EV.
+    const CASAS = [
+      { id: 8, nombre: "Bet365" },
+      { id: 32, nombre: "Betano" },
+    ];
 
-    const odds = bets.map((bet) => ({
-      mercado: bet.name,
-      valores: bet.values,
+    // Una cuota de 1.00 o menos no devuelve nada: es un mercado suspendido o
+    // un precio roto. Pasa de verdad — Bet365 publica "Goals Over/Under -
+    // Under 6.5" a 1 en varios partidos — y sin este filtro "la mas baja"
+    // agarraria justo ese valor.
+    const CUOTA_MIN = 1.01;
+    const CUOTA_MAX = 1000;
+
+    // Excepcion a "la mas baja": si la baja esta pegada al suelo y la otra
+    // casa la desmiente por mucho, la rota es la baja. Umbrales medidos sobre
+    // 2716 pares reales de estos dos libros: los 62 pares legitimos con cuota
+    // baja por debajo de 1.10 no superan 1.068 de discrepancia, muy lejos del
+    // 1.30 que exige la excepcion (0 falsos positivos en la muestra).
+    const SUELO_SOSPECHOSO = 1.10;
+    const DESVIO_MAX = 1.30;
+
+    const cuotaValida = (o) => Number.isFinite(o) && o >= CUOTA_MIN && o <= CUOTA_MAX;
+
+    const librosPorId = new Map(
+      (oddsData?.response?.[0]?.bookmakers || []).map((b) => [b.id, b])
+    );
+
+    // Seleccion por id y NUNCA por posicion: el orden del array de casas
+    // cambia de un partido a otro.
+    const librosUsados = CASAS
+      .map((c) => ({ ...c, libro: librosPorId.get(c.id) }))
+      .filter((c) => c.libro);
+
+    // mercado -> linea exacta -> candidatas de cada casa. El emparejado es
+    // por mercado + linea: si Betano cotiza corners 8.5 y Bet365 solo 10.5,
+    // cada linea va por su lado y no se mezclan.
+    const mercados = new Map();
+    for (const { nombre, libro } of librosUsados) {
+      for (const bet of libro.bets || []) {
+        if (!bet?.name) continue;
+        const lineas = mercados.get(bet.name) || new Map();
+        for (const v of bet.values || []) {
+          if (v?.value == null) continue;
+          const oddNum = parseFloat(v.odd);
+          if (!cuotaValida(oddNum)) continue;
+          const candidatas = lineas.get(v.value) || [];
+          candidatas.push({ odd: v.odd, oddNum, casa: nombre });
+          lineas.set(v.value, candidatas);
+        }
+        if (lineas.size) mercados.set(bet.name, lineas);
+      }
+    }
+
+    const elegirCuota = (candidatas) => {
+      if (candidatas.length === 1) return candidatas[0];
+      const orden = [...candidatas].sort((a, b) => a.oddNum - b.oddNum);
+      const baja = orden[0];
+      const alta = orden[orden.length - 1];
+      if (baja.oddNum < SUELO_SOSPECHOSO && alta.oddNum / baja.oddNum >= DESVIO_MAX) {
+        return alta;
+      }
+      return baja;
+    };
+
+    // Mismo formato de siempre ({ mercado, valores: [{ value, odd }] }) para
+    // no tocar a quien lo consume; `casa` y `comparada` se añaden encima.
+    const odds = [...mercados.entries()].map(([mercado, lineas]) => ({
+      mercado,
+      valores: [...lineas.entries()].map(([value, candidatas]) => {
+        const elegida = elegirCuota(candidatas);
+        return {
+          value,
+          odd: elegida.odd,
+          casa: elegida.casa,
+          comparada: candidatas.length > 1,
+        };
+      }),
     }));
 
     // ── 6. Procesar estadísticas ──────────────────────────────────────
@@ -503,6 +580,7 @@ export default async function handler(req, res) {
       // correspondientes son "no se pudo consultar", no "no hay nada".
       avisos,
       lesionados_disponibles: injuriesData !== null,
+      cuotas_casas: librosUsados.map((c) => c.nombre),
     });
   } catch (error) {
     // Fallo identificado de la API (cuota, clave, plan, parametro). Se
