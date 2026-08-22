@@ -981,6 +981,12 @@ export default function BetFutProV3() {
   // Que partido del calendario se esta analizando, para que solo SU boton
   // muestre "Analizando..." y no todos.
   const [analizandoId, setAnalizandoId] = useState(null);
+  // Candado sincrono contra la doble pulsacion: entre el arranque y el
+  // setLoading hay un await (el chequeo de limite), y en esa ventana un
+  // segundo toque lanzaba OTRO analisis: doble consumo de cuota del plan y
+  // doble llamada a la IA. El estado `loading` no sirve de guardia porque
+  // aun no esta puesto; un ref si, porque cambia en el acto.
+  const analisisEnCurso = useRef(false);
 
   const guardarEnHistorial = (mercado) => {
     if (!savedAnalysis) return;
@@ -1033,6 +1039,8 @@ export default function BetFutProV3() {
     const fixtureId = opciones.fixtureId ?? null;
 
     if (!local || !visitante) return;
+    if (analisisEnCurso.current) return;
+    analisisEnCurso.current = true;
 
     setAnalizandoId(fixtureId);
 
@@ -1042,6 +1050,7 @@ export default function BetFutProV3() {
       if (!check.allowed) {
         setError(`Alcanzaste tu límite de ${check.limite} análisis/día (plan ${check.plan?.toUpperCase()}). Actualiza tu plan para más.`);
         setAnalizandoId(null);
+        analisisEnCurso.current = false;
         // No se cambia de vista: el aviso se pinta sobre el calendario, y se
         // sube al tope para que no quede fuera de pantalla.
         window.scrollTo({ top: 0 });
@@ -1074,6 +1083,7 @@ export default function BetFutProV3() {
       });
       setLoading(false);
       setAnalizandoId(null);
+      analisisEnCurso.current = false;
       return;
     }
 
@@ -1407,9 +1417,9 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
       const desc1 = t1.descripcion || parsed.top_apuesta?.descripcion || "—";
       const fuente1 = t1.cuota_fuente || parsed.top_apuesta?.cuota_fuente || "Estimada";
 
-      parsed.post_telegram = `🏆 *BetFut* — ANÁLISIS ÉLITE\n\n⚽ ${parsed.partido?.local} vs ${parsed.partido?.visitante}\n🏆 ${parsed.partido?.competicion || "Fútbol"} | ${parsed.partido?.fecha || form.fecha}\n\n━━━━━━━━━━━━━━━━━━━━\n🥇 APUESTA #1 — MAYOR VALOR\n━━━━━━━━━━━━━━━━━━━━\n🎯 ${nombre1}: ${desc1}\n💰 Cuota: ${cuota1} (${fuente1})\n📊 Confianza: ${conf1}% | EV: +${ev1}%\n\n🥈 ALTERNATIVA #2\n🎯 ${t2.nombre || "—"}: ${t2.descripcion || "—"}\n💰 Cuota: ${(t2.cuota || 0).toFixed(2)} | Confianza: ${t2.nivel_confianza || "—"}%\n\n🥉 ALTERNATIVA #3\n🎯 ${t3.nombre || "—"}: ${t3.descripcion || "—"}\n💰 Cuota: ${(t3.cuota || 0).toFixed(2)} | Confianza: ${t3.nivel_confianza || "—"}%\n\n━━━━━━━━━━━━━━━━━━━━\n🔑 PUNTOS CLAVE\n━━━━━━━━━━━━━━━━━━━━\n${(parsed.puntos_clave || []).map(p => `• ${p}`).join("\n")}\n\n🏥 Bajas ${parsed.partido?.local}: ${bL}\n🏥 Bajas ${parsed.partido?.visitante}: ${bV}\n\n⚡ Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n⚠️ Solo sugerencia. Juega con responsabilidad.`;
+      parsed.post_telegram = `🏆 *BetFut* — ANÁLISIS ÉLITE\n\n⚽ ${parsed.partido?.local} vs ${parsed.partido?.visitante}\n🏆 ${parsed.partido?.competicion || "Fútbol"} | ${parsed.partido?.fecha || "Próximos días"}\n\n━━━━━━━━━━━━━━━━━━━━\n🥇 APUESTA #1 — MAYOR VALOR\n━━━━━━━━━━━━━━━━━━━━\n🎯 ${nombre1}: ${desc1}\n💰 Cuota: ${cuota1} (${fuente1})\n📊 Confianza: ${conf1}% | EV: +${ev1}%\n\n🥈 ALTERNATIVA #2\n🎯 ${t2.nombre || "—"}: ${t2.descripcion || "—"}\n💰 Cuota: ${(t2.cuota || 0).toFixed(2)} | Confianza: ${t2.nivel_confianza || "—"}%\n\n🥉 ALTERNATIVA #3\n🎯 ${t3.nombre || "—"}: ${t3.descripcion || "—"}\n💰 Cuota: ${(t3.cuota || 0).toFixed(2)} | Confianza: ${t3.nivel_confianza || "—"}%\n\n━━━━━━━━━━━━━━━━━━━━\n🔑 PUNTOS CLAVE\n━━━━━━━━━━━━━━━━━━━━\n${(parsed.puntos_clave || []).map(p => `• ${p}`).join("\n")}\n\n🏥 Bajas ${parsed.partido?.local}: ${bL}\n🏥 Bajas ${parsed.partido?.visitante}: ${bV}\n\n⚡ Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n⚠️ Solo sugerencia. Juega con responsabilidad.`;
 
-      parsed.post_whatsapp = `🏆 *BetFut*\n\n⚽ *${parsed.partido?.local} vs ${parsed.partido?.visitante}*\n📅 ${parsed.partido?.fecha || form.fecha} | 🏆 ${parsed.partido?.competicion || "Fútbol"}\n\n─────────────────────\n🥇 *MEJOR APUESTA*\n─────────────────────\n🎯 *${nombre1}*\n📝 ${desc1}\n💰 Cuota: *${cuota1}* (${fuente1})\n✅ Confianza: *${conf1}%* | EV: *+${ev1}%*\n\n─────────────────────\n🥈 *ALTERNATIVAS*\n─────────────────────\n🎯 ${t2.nombre || "—"} — Cuota *${(t2.cuota || 0).toFixed(2)}*\n🎯 ${t3.nombre || "—"} — Cuota *${(t3.cuota || 0).toFixed(2)}*\n\n─────────────────────\n🔑 *PUNTOS CLAVE*\n─────────────────────\n${(parsed.puntos_clave || []).map((p, i) => `${i + 1}️⃣ ${p}`).join("\n")}\n\n🏥 *Bajas:*\n▪️ ${parsed.partido?.local}: ${bL}\n▪️ ${parsed.partido?.visitante}: ${bV}\n\n📊 Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n_⚠️ Solo sugerencia. Juega responsable._`;
+      parsed.post_whatsapp = `🏆 *BetFut*\n\n⚽ *${parsed.partido?.local} vs ${parsed.partido?.visitante}*\n📅 ${parsed.partido?.fecha || "Próximos días"} | 🏆 ${parsed.partido?.competicion || "Fútbol"}\n\n─────────────────────\n🥇 *MEJOR APUESTA*\n─────────────────────\n🎯 *${nombre1}*\n📝 ${desc1}\n💰 Cuota: *${cuota1}* (${fuente1})\n✅ Confianza: *${conf1}%* | EV: *+${ev1}%*\n\n─────────────────────\n🥈 *ALTERNATIVAS*\n─────────────────────\n🎯 ${t2.nombre || "—"} — Cuota *${(t2.cuota || 0).toFixed(2)}*\n🎯 ${t3.nombre || "—"} — Cuota *${(t3.cuota || 0).toFixed(2)}*\n\n─────────────────────\n🔑 *PUNTOS CLAVE*\n─────────────────────\n${(parsed.puntos_clave || []).map((p, i) => `${i + 1}️⃣ ${p}`).join("\n")}\n\n🏥 *Bajas:*\n▪️ ${parsed.partido?.local}: ${bL}\n▪️ ${parsed.partido?.visitante}: ${bV}\n\n📊 Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n_⚠️ Solo sugerencia. Juega responsable._`;
 
       setData(parsed);
       setTab("mercados");
@@ -1433,7 +1443,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
     } catch (e) {
       clearInterval(iv);
       setError("Error: " + e.message + " — Intenta de nuevo.");
-    } finally { setLoading(false); setProgress(""); setAnalizandoId(null); }
+    } finally { setLoading(false); setProgress(""); setAnalizandoId(null); analisisEnCurso.current = false; }
   };
 
   const copy = (text) => { navigator.clipboard?.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };

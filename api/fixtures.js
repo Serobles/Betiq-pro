@@ -124,7 +124,15 @@ export default async function handler(req, res) {
     const clave = `${zona}|${dias[0]}`;
     const guardado = listaCache.get(clave);
     if (guardado && guardado.expira > Date.now()) {
-      return res.status(200).json({ ...guardado.payload, desde_cache: true });
+      // zona_solicitada/soportada son del que pregunta ahora, no del primer
+      // usuario que lleno el cache (la lista de partidos si es compartible:
+      // la clave ya garantiza misma zona resuelta y misma ventana).
+      return res.status(200).json({
+        ...guardado.payload,
+        zona_solicitada: solicitada,
+        zona_soportada: soportada,
+        desde_cache: true,
+      });
     }
 
     // `season` es obligatorio junto a league+from+to, y no se puede pedir mas
@@ -175,8 +183,8 @@ export default async function handler(req, res) {
     const porLiga = [];
     for (let i = 0; i < LIGAS.length; i += TANDA) {
       const tanda = LIGAS.slice(i, i + TANDA);
-      const res = await Promise.allSettled(tanda.map(cargarLiga));
-      res.forEach((r, j) => {
+      const resultados = await Promise.allSettled(tanda.map(cargarLiga));
+      resultados.forEach((r, j) => {
         if (r.status === "fulfilled") {
           porLiga.push(r.value);
         } else {
@@ -213,6 +221,9 @@ export default async function handler(req, res) {
     // Solo se cachea una carga COMPLETA: guardar una a medias congelaria las
     // ligas caidas durante todo el TTL en vez de reintentarlas.
     if (!avisos.length) {
+      // Barrer las entradas caducadas al guardar: las claves llevan el dia,
+      // asi que sin poda el mapa creceria sin tope en una instancia longeva.
+      for (const [k, v] of listaCache) if (v.expira <= Date.now()) listaCache.delete(k);
       listaCache.set(clave, { expira: Date.now() + TTL_MS, payload });
     }
 

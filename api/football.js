@@ -558,7 +558,10 @@ export default async function handler(req, res) {
         forma: s.form,
         mayor_racha_victorias: s.biggest?.streak?.wins,
         mayor_racha_derrotas: s.biggest?.streak?.loses,
-        goles_primer_tiempo: s.goals?.for?.minute?.["0-15"]?.total +
+        // El primer sumando tambien necesita el || 0: si la API no trae el
+        // tramo 0-15 (undefined + n = NaN), la IA acababa leyendo
+        // "Goles 1a parte:NaN".
+        goles_primer_tiempo: (s.goals?.for?.minute?.["0-15"]?.total || 0) +
           (s.goals?.for?.minute?.["16-30"]?.total || 0) +
           (s.goals?.for?.minute?.["31-45"]?.total || 0),
       };
