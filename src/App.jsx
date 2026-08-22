@@ -441,7 +441,7 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
   }
 
   return (
-    <div style={{ padding: "6px 2px 6px 10px" }}>
+    <div id={`partido-${p.id}`} style={{ padding: "6px 2px 6px 10px" }}>
       <div style={{ display: "grid", gridTemplateColumns: "52px 1fr auto", gap: 10, alignItems: "center" }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{p.hora}</span>
         <div style={{ fontSize: 13, color: C.text }}>
@@ -455,13 +455,11 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
   );
 };
 
-const Calendario = ({ onAnalizar, analizandoId }) => {
+const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoPartido, onObjetivoCumplido }) => {
   const [dias, setDias] = useState(null);
   // Ligas que no respondieron. Sin esto desapareceran de la lista en silencio
   // y pareceria que ese dia no tienen partidos.
   const [ligasCaidas, setLigasCaidas] = useState([]);
-  // Indice 2 = hoy, porque la ventana va de anteayer a pasado manana.
-  const [diaSel, setDiaSel] = useState(2);
   const pestanaActiva = useRef(null);
   const [zona, setZona] = useState(ZONA_NAVEGADOR);
   const [cargando, setCargando] = useState(true);
@@ -518,6 +516,18 @@ const Calendario = ({ onAnalizar, analizandoId }) => {
     pestanaActiva.current?.scrollIntoView({ inline: "center", block: "nearest" });
   }, [diaSel, dias]);
 
+  // 3C: al volver de la vista de analisis, situar la pantalla en la tarjeta
+  // del partido que se toco. Corre cuando los dias ya estan pintados (con el
+  // cache del servidor llegan casi al instante) y se consume SIEMPRE, aunque
+  // la tarjeta ya no exista: un objetivo rancio no debe re-desplazar la
+  // pantalla al cambiar de pestana mas tarde.
+  useEffect(() => {
+    if (!objetivoPartido || !dias) return;
+    document.getElementById(`partido-${objetivoPartido}`)
+      ?.scrollIntoView({ block: "center" });
+    onObjetivoCumplido?.();
+  }, [dias, objetivoPartido]);
+
   return (
     <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18, flexWrap: "wrap", gap: 8 }}>
@@ -564,7 +574,7 @@ const Calendario = ({ onAnalizar, analizandoId }) => {
                 <button
                   key={d.fecha}
                   ref={activa ? pestanaActiva : null}
-                  onClick={() => setDiaSel(i)}
+                  onClick={() => onDiaSel(i)}
                   style={{
                     flex: "0 0 auto", minWidth: 76,
                     display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
@@ -987,6 +997,14 @@ export default function BetFutProV3() {
   // doble llamada a la IA. El estado `loading` no sirve de guardia porque
   // aun no esta puesto; un ref si, porque cambia en el acto.
   const analisisEnCurso = useRef(false);
+  // 3C: el dia elegido vive aqui y no dentro de Calendario, porque cambiar a
+  // la vista de analisis desmonta el componente y un estado interno volveria
+  // siempre a "hoy". El padre no se desmonta nunca.
+  const [diaSel, setDiaSel] = useState(2);
+  // De que tarjeta nacio el analisis en curso (null si vino del buscador) y
+  // objetivo pendiente de scroll al volver.
+  const ultimoFixture = useRef(null);
+  const [objetivoPartido, setObjetivoPartido] = useState(null);
 
   const guardarEnHistorial = (mercado) => {
     if (!savedAnalysis) return;
@@ -1043,6 +1061,7 @@ export default function BetFutProV3() {
     analisisEnCurso.current = true;
 
     setAnalizandoId(fixtureId);
+    ultimoFixture.current = fixtureId;
 
     // ── Verificar límite de plan ──────────────────────────
     if (supabase && user) {
@@ -1487,8 +1506,12 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
   );
 
   const volverAlCalendario = () => {
+    // Si el analisis nacio de una tarjeta del calendario se vuelve a ella
+    // (el scroll lo hace Calendario cuando los dias estan pintados); si nacio
+    // del buscador del pie, arriba como siempre.
+    setObjetivoPartido(ultimoFixture.current);
     setMainTab("analizar");
-    window.scrollTo({ top: 0 });
+    if (!ultimoFixture.current) window.scrollTo({ top: 0 });
   };
 
   const top3 = data?.mercados_analizados?.slice().sort((a, b) => a.ranking - b.ranking).slice(0, 3) || [];
@@ -1558,9 +1581,14 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
               {[["analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
                 <button key={k} onClick={() => {
                   setMainTab(k);
-                  // El calendario es lo primero de la vista: si el usuario
-                  // estaba abajo, "Analizar" lo devuelve al inicio.
-                  if (k === "analizar") window.scrollTo({ top: 0, behavior: "smooth" });
+                  // Boton de inicio: siempre arriba y siempre en HOY. Conservar
+                  // el dia y la tarjeta es cosa del "Volver" de la vista de
+                  // analisis, no de esta pestana.
+                  if (k === "analizar") {
+                    setDiaSel(2);
+                    setObjetivoPartido(null);
+                    window.scrollTo({ top: 0, behavior: "smooth" });
+                  }
                 }} style={{
                   background: mainTab === k ? "linear-gradient(135deg,#16a34a,#22c55e)" : "transparent",
                   color: mainTab === k ? "#fff" : C.muted,
@@ -1617,6 +1645,10 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id })
               }
               analizandoId={analizandoId}
+              diaSel={diaSel}
+              onDiaSel={setDiaSel}
+              objetivoPartido={objetivoPartido}
+              onObjetivoCumplido={() => setObjetivoPartido(null)}
             />
           </>
         )}
