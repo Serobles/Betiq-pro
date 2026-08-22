@@ -5,7 +5,7 @@ export default async function handler(req, res) {
 
   res.setHeader("Access-Control-Allow-Origin", "*");
 
-  const { local, visitante } = req.body;
+  const { local, visitante, fixture_id } = req.body;
   const API_KEY = process.env.API_FOOTBALL_KEY;
 
   if (!API_KEY) {
@@ -13,12 +13,22 @@ export default async function handler(req, res) {
   }
 
   // ── Validación de entrada ─────────────────────────────────────────
+  // Dos formas de pedir un partido:
+  //   - por nombres, como siempre (el buscador)
+  //   - por fixture_id, cuando ya se sabe cual es (el calendario). Ese
+  //     camino se salta toda la resolucion de nombres, que es de donde
+  //     salen las confusiones tipo "Aguilas" -> club español.
+  const fixtureIdPedido = Number.isFinite(Number(fixture_id))
+    ? Number(fixture_id)
+    : null;
+
   const localNombre = typeof local === "string" ? local.trim() : "";
   const visitanteNombre = typeof visitante === "string" ? visitante.trim() : "";
 
-  if (!localNombre || !visitanteNombre) {
+  if (!fixtureIdPedido && (!localNombre || !visitanteNombre)) {
     return res.status(400).json({
-      error: "Faltan los nombres de los equipos: 'local' y 'visitante' son obligatorios",
+      error:
+        "Falta identificar el partido: envia 'fixture_id', o bien 'local' y 'visitante'",
     });
   }
 
@@ -274,44 +284,61 @@ export default async function handler(req, res) {
       return elegirMejor(unicos, claves) || directo || candidatos[0]?.team || null;
     };
 
-    const [equipoLocal, equipoVisitante] = await Promise.all([
-      buscarEquipo(localNombre),
-      buscarEquipo(visitanteNombre),
-    ]);
+    // ── 2. Localizar el partido ───────────────────────────────────────
+    // Con fixture_id basta una peticion y el partido es exactamente el que
+    // el usuario toco. Sin el, hay que resolver los dos nombres (2 peticiones
+    // o mas) y luego buscar el proximo enfrentamiento entre ambos (1 mas).
+    let match;
 
-    if (!equipoLocal || !equipoVisitante) {
-      const faltante = !equipoLocal ? localNombre : visitanteNombre;
-      return res.status(200).json({
-        ...vacio,
-        mensaje: `Equipo no encontrado en API-Football: "${faltante}". Se usará búsqueda web como respaldo.`,
-      });
-    }
+    if (fixtureIdPedido) {
+      const d = await pedir(`/fixtures?id=${fixtureIdPedido}`);
+      match = d.response?.[0];
 
-    // ── 2. Próximo enfrentamiento directo entre ambos ─────────────────
-    // El parámetro `next` no está disponible en todos los planes, así que
-    // se pide el historial completo y se elige aquí el primer partido
-    // cuya fecha esté por delante de ahora.
-    const h2hData = await pedir(
-      `/fixtures/headtohead?h2h=${equipoLocal.id}-${equipoVisitante.id}`
-    );
-    const enfrentamientos = h2hData.response || [];
+      if (!match) {
+        return res.status(200).json({
+          ...vacio,
+          mensaje: `El partido ${fixtureIdPedido} ya no existe en API-Football. Se usará búsqueda web como respaldo.`,
+        });
+      }
+    } else {
+      const [equipoLocal, equipoVisitante] = await Promise.all([
+        buscarEquipo(localNombre),
+        buscarEquipo(visitanteNombre),
+      ]);
 
-    const ahora = Date.now();
-    const match = enfrentamientos
-      .filter((f) => {
-        const t = new Date(f.fixture?.date).getTime();
-        return Number.isFinite(t) && t > ahora;
-      })
-      .sort(
-        (a, b) =>
-          new Date(a.fixture.date).getTime() - new Date(b.fixture.date).getTime()
-      )[0];
+      if (!equipoLocal || !equipoVisitante) {
+        const faltante = !equipoLocal ? localNombre : visitanteNombre;
+        return res.status(200).json({
+          ...vacio,
+          mensaje: `Equipo no encontrado en API-Football: "${faltante}". Se usará búsqueda web como respaldo.`,
+        });
+      }
 
-    if (!match) {
-      return res.status(200).json({
-        ...vacio,
-        mensaje: `No hay un próximo enfrentamiento programado entre ${equipoLocal.name} y ${equipoVisitante.name} (se revisaron ${enfrentamientos.length} enfrentamientos anteriores). Se usará búsqueda web como respaldo.`,
-      });
+      // El parámetro `next` no está disponible en todos los planes, así que
+      // se pide el historial completo y se elige aquí el primer partido
+      // cuya fecha esté por delante de ahora.
+      const h2hData = await pedir(
+        `/fixtures/headtohead?h2h=${equipoLocal.id}-${equipoVisitante.id}`
+      );
+      const enfrentamientos = h2hData.response || [];
+
+      const ahora = Date.now();
+      match = enfrentamientos
+        .filter((f) => {
+          const t = new Date(f.fixture?.date).getTime();
+          return Number.isFinite(t) && t > ahora;
+        })
+        .sort(
+          (a, b) =>
+            new Date(a.fixture.date).getTime() - new Date(b.fixture.date).getTime()
+        )[0];
+
+      if (!match) {
+        return res.status(200).json({
+          ...vacio,
+          mensaje: `No hay un próximo enfrentamiento programado entre ${equipoLocal.name} y ${equipoVisitante.name} (se revisaron ${enfrentamientos.length} enfrentamientos anteriores). Se usará búsqueda web como respaldo.`,
+        });
+      }
     }
 
     const fixtureId = match.fixture.id;

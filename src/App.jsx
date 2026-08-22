@@ -399,7 +399,7 @@ const chipS = {
   border: `1px solid ${C.border}`, borderRadius: 999, padding: "3px 9px", whiteSpace: "nowrap",
 };
 
-const PartidoFila = ({ p }) => {
+const PartidoFila = ({ p, onAnalizar, analizando }) => {
   const marcador = `${p.goles_local ?? "-"} - ${p.goles_visitante ?? "-"}`;
 
   let derecha = null;
@@ -424,14 +424,16 @@ const PartidoFila = ({ p }) => {
       <span style={chipS}>🔒 {BLOQUEADO_TITULO}</span>
     ) : (
       <button
-        onClick={() => console.log("Ver analisis (pendiente paso 2B):", p.id, p.local, "vs", p.visitante)}
+        onClick={() => onAnalizar?.(p)}
+        disabled={analizando}
         style={{
           fontSize: 12, fontWeight: 800, color: "#fff", border: "none", borderRadius: 8,
-          padding: "7px 12px", cursor: "pointer", whiteSpace: "nowrap",
-          background: "linear-gradient(135deg,#16a34a,#22c55e)",
+          padding: "7px 12px", whiteSpace: "nowrap",
+          cursor: analizando ? "wait" : "pointer",
+          background: analizando ? C.dim : "linear-gradient(135deg,#16a34a,#22c55e)",
         }}
       >
-        Ver analisis
+        {analizando ? "Analizando..." : "Ver analisis"}
       </button>
     );
   } else {
@@ -455,7 +457,7 @@ const PartidoFila = ({ p }) => {
   );
 };
 
-const Calendario = () => {
+const Calendario = ({ onAnalizar, analizandoId }) => {
   const [dias, setDias] = useState(null);
   const [zona, setZona] = useState(ZONA_NAVEGADOR);
   const [cargando, setCargando] = useState(true);
@@ -529,7 +531,14 @@ const Calendario = () => {
             d.ligas.map((g) => (
               <div key={g.liga} style={{ marginBottom: 10 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.blue, padding: "4px 2px" }}>{g.liga}</div>
-                {g.partidos.map((p) => <PartidoFila key={p.id} p={p} />)}
+                {g.partidos.map((p) => (
+                  <PartidoFila
+                    key={p.id}
+                    p={p}
+                    onAnalizar={onAnalizar}
+                    analizando={analizandoId === p.id}
+                  />
+                ))}
               </div>
             ))
           )}
@@ -907,6 +916,11 @@ export default function BetFutProV3() {
   const [postMode, setPostMode] = useState("telegram");
   const [copied, setCopied] = useState(false);
   const [mainTab, setMainTab] = useState("analizar");
+  // Que partido del calendario se esta analizando, para que solo SU boton
+  // muestre "Analizando..." y no todos.
+  const [analizandoId, setAnalizandoId] = useState(null);
+  const panelRef = useRef(null);
+  const scrollAlPanel = useRef(false);
 
   const guardarEnHistorial = (mercado) => {
     if (!savedAnalysis) return;
@@ -950,14 +964,28 @@ export default function BetFutProV3() {
     setGuardadoId(id);
   };
 
-  const analyze = async () => {
-    if (!form.local || !form.visitante) return;
+  const analyze = async (opciones = {}) => {
+    // El buscador llama sin argumentos y tira del formulario, igual que
+    // siempre. El calendario pasa el partido ya identificado y su fixtureId,
+    // que evita toda la resolucion de nombres en el backend.
+    const local = opciones.local ?? form.local;
+    const visitante = opciones.visitante ?? form.visitante;
+    const fixtureId = opciones.fixtureId ?? null;
+
+    if (!local || !visitante) return;
+
+    setAnalizandoId(fixtureId);
+    // Solo se baja la pantalla cuando el analisis nace del calendario: desde
+    // el buscador el panel ya queda a la vista y moverlo seria un cambio de
+    // comportamiento.
+    scrollAlPanel.current = Boolean(fixtureId);
 
     // ── Verificar límite de plan ──────────────────────────
     if (supabase && user) {
       const check = await checkAndIncrementAnalysis(user.id);
       if (!check.allowed) {
         setError(`Alcanzaste tu límite de ${check.limite} análisis/día (plan ${check.plan?.toUpperCase()}). Actualiza tu plan para más.`);
+        setAnalizandoId(null);
         return;
       }
     }
@@ -965,12 +993,12 @@ export default function BetFutProV3() {
     // ── Verificar caché ───────────────────────────────────
     setLoading(true); setError(""); setAviso(null); setData(null);
     setProgress("⚡ Verificando caché de análisis...");
-    const cached = await getCachedAnalysis(form.local, form.visitante);
+    const cached = await getCachedAnalysis(local, visitante);
     if (cached) {
       setData(cached);
       setSavedAnalysis({
-        local: cached?.partido?.local || form.local,
-        visitante: cached?.partido?.visitante || form.visitante,
+        local: cached?.partido?.local || local,
+        visitante: cached?.partido?.visitante || visitante,
         competicion: cached?.partido?.competicion || "N/D",
         fecha_partido: cached?.partido?.fecha || "Próximos días",
         prob_local: cached?.probabilidades_1x2?.victoria_local || 0,
@@ -979,6 +1007,7 @@ export default function BetFutProV3() {
         bajas_local: "Ver análisis", bajas_visitante: "Ver análisis",
       });
       setLoading(false);
+      setAnalizandoId(null);
       return;
     }
 
@@ -1059,7 +1088,11 @@ export default function BetFutProV3() {
         const footballRes = await fetch("/api/football", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ local: form.local, visitante: form.visitante }),
+          // Con fixtureId el backend sabe exactamente que partido es; sin el,
+          // lo resuelve por nombres como hasta ahora.
+          body: JSON.stringify(
+            fixtureId ? { fixture_id: fixtureId } : { local, visitante }
+          ),
         });
 
         const footballText = await footballRes.text();
@@ -1160,7 +1193,7 @@ FUENTE: API-Football (datos oficiales en tiempo real)`;
       } else {
         // Sin datos de API-Football: Claude analiza con conocimiento propio
         setProgress("🧠 Analizando con conocimiento de IA...");
-        searchData = `Partido: ${form.local} vs ${form.visitante} | Fecha: "próximos días".
+        searchData = `Partido: ${local} vs ${visitante} | Fecha: "próximos días".
 Partido no encontrado en API-Football para esa fecha. Analiza basandote en tu conocimiento del historial,
 forma reciente, estadísticas y contexto de ambos equipos. Usa cuotas estimadas realistas.`;
       }
@@ -1171,7 +1204,7 @@ forma reciente, estadísticas y contexto de ambos equipos. Usa cuotas estimadas 
         SYSTEM_PROMPT,
         [{
           role: "user",
-          content: `Partido: ${form.local} vs ${form.visitante} | Fecha: ${"Próximos días"}
+          content: `Partido: ${local} vs ${visitante} | Fecha: ${"Próximos días"}
 
 DATOS REALES DE API-FOOTBALL:
 ${searchData.slice(0, 2500)}
@@ -1304,13 +1337,13 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
       setTab("mercados");
 
       // ── Guardar en caché Supabase ─────────────────────
-      saveAnalysisCache(form.local, form.visitante, parsed);
+      saveAnalysisCache(local, visitante, parsed);
 
       // ── Guardar snapshot del análisis para permitir guardar desde cada mercado ──
       setSavedAnalysis({
         partido: parsed?.partido,
-        local: parsed?.partido?.local || form.local || "",
-        visitante: parsed?.partido?.visitante || form.visitante || "",
+        local: parsed?.partido?.local || local || "",
+        visitante: parsed?.partido?.visitante || visitante || "",
         competicion: parsed?.partido?.competicion || "N/D",
         fecha_partido: parsed?.partido?.fecha || "Próximos días",
         prob_local: Number(pr?.victoria_local) || 0,
@@ -1322,8 +1355,17 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
     } catch (e) {
       clearInterval(iv);
       setError("Error: " + e.message + " — Intenta de nuevo.");
-    } finally { setLoading(false); setProgress(""); }
+    } finally { setLoading(false); setProgress(""); setAnalizandoId(null); }
   };
+
+  // Con los 5 dias de calendario por encima, el panel de resultados nace
+  // fuera de la vista y parece que el boton no hizo nada.
+  useEffect(() => {
+    if (data && scrollAlPanel.current && panelRef.current) {
+      panelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollAlPanel.current = false;
+    }
+  }, [data]);
 
   const copy = (text) => { navigator.clipboard?.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
@@ -1460,7 +1502,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 </div>
               </div>
 
-              <button onClick={analyze} disabled={loading || !form.local || !form.visitante} style={{
+              <button onClick={() => analyze()} disabled={loading || !form.local || !form.visitante} style={{
                 width: "100%", background: loading ? C.dim : "linear-gradient(135deg,#16a34a,#22c55e)", color: "#fff", border: "none", borderRadius: 10,
                 padding: "14px", fontWeight: 800, fontSize: 15, cursor: loading ? "not-allowed" : "pointer",
                 boxShadow: loading ? "none" : "0 4px 20px rgba(34,197,94,0.45)", letterSpacing: ".03em"
@@ -1489,7 +1531,14 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
               )}
             </div>
 
-            <Calendario />
+            <Calendario
+              onAnalizar={(p) =>
+                analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id })
+              }
+              analizandoId={analizandoId}
+            />
+
+            <div ref={panelRef} />
 
             {data && (
               <>
