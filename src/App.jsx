@@ -919,8 +919,6 @@ export default function BetFutProV3() {
   // Que partido del calendario se esta analizando, para que solo SU boton
   // muestre "Analizando..." y no todos.
   const [analizandoId, setAnalizandoId] = useState(null);
-  const panelRef = useRef(null);
-  const scrollAlPanel = useRef(false);
 
   const guardarEnHistorial = (mercado) => {
     if (!savedAnalysis) return;
@@ -975,10 +973,6 @@ export default function BetFutProV3() {
     if (!local || !visitante) return;
 
     setAnalizandoId(fixtureId);
-    // Solo se baja la pantalla cuando el analisis nace del calendario: desde
-    // el buscador el panel ya queda a la vista y moverlo seria un cambio de
-    // comportamiento.
-    scrollAlPanel.current = Boolean(fixtureId);
 
     // ── Verificar límite de plan ──────────────────────────
     if (supabase && user) {
@@ -986,9 +980,19 @@ export default function BetFutProV3() {
       if (!check.allowed) {
         setError(`Alcanzaste tu límite de ${check.limite} análisis/día (plan ${check.plan?.toUpperCase()}). Actualiza tu plan para más.`);
         setAnalizandoId(null);
+        // No se cambia de vista: el aviso se pinta sobre el calendario, y se
+        // sube al tope para que no quede fuera de pantalla.
+        window.scrollTo({ top: 0 });
         return;
       }
     }
+
+    // El analisis tiene vista propia y se entra en ella al arrancar, no al
+    // terminar: asi el progreso se ve desde el primer segundo y un fallo
+    // aparece donde el usuario esta mirando. Vale para las dos entradas, el
+    // calendario y el buscador del pie.
+    setMainTab("analisis");
+    window.scrollTo({ top: 0 });
 
     // ── Verificar caché ───────────────────────────────────
     setLoading(true); setError(""); setAviso(null); setData(null);
@@ -1370,20 +1374,49 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
     } finally { setLoading(false); setProgress(""); setAnalizandoId(null); }
   };
 
-  // Con los 5 dias de calendario por encima, el panel de resultados nace
-  // fuera de la vista y parece que el boton no hizo nada.
-  useEffect(() => {
-    if (data && scrollAlPanel.current && panelRef.current) {
-      panelRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-      scrollAlPanel.current = false;
-    }
-  }, [data]);
-
   const copy = (text) => { navigator.clipboard?.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   const inputS = {
     width: "100%", background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8,
     padding: "10px 14px", color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit"
+  };
+
+  // Progreso, error y aviso clasificado. Viven aqui y no dentro de la tarjeta
+  // del buscador porque esa tarjeta esta al pie de la pagina: un fallo lanzado
+  // desde el calendario quedaba enterrado abajo, fuera de vista. Se pinta en la
+  // vista activa, encima del contenido, que es donde el usuario esta mirando.
+  const bloqueEstado = (
+    <>
+      {loading && progress && (
+        <div style={{ marginBottom: 16, textAlign: "center", fontSize: 13, color: C.muted }}>
+          <div style={{ width: "100%", height: 3, background: C.border, borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>
+            <div style={{ height: "100%", background: C.accent, animation: "progress 18s linear forwards", width: "0%" }} />
+          </div>
+          <style>{`@keyframes progress { to { width: 95%; } }`}</style>
+          {progress}
+        </div>
+      )}
+      {error && (
+        <div style={{ marginBottom: 16, color: C.red, fontSize: 13, background: C.redDim, borderRadius: 8, padding: "10px 14px" }}>
+          {error}
+        </div>
+      )}
+      {aviso && (
+        <div style={{
+          marginBottom: 16, fontSize: 13, borderRadius: 8, padding: "10px 14px",
+          color: aviso.nivel === "error" ? C.amber : C.muted,
+          background: aviso.nivel === "error" ? C.amberDim : C.card2,
+          border: `1px solid ${aviso.nivel === "error" ? C.amber + "55" : C.border}`,
+        }}>
+          {aviso.nivel === "error" ? "⚠️ " : "ℹ️ "}{aviso.texto}
+        </div>
+      )}
+    </>
+  );
+
+  const volverAlCalendario = () => {
+    setMainTab("analizar");
+    window.scrollTo({ top: 0 });
   };
 
   const top3 = data?.mercados_analizados?.slice().sort((a, b) => a.ranking - b.ranking).slice(0, 3) || [];
@@ -1505,14 +1538,36 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
 
         {mainTab === "analizar" && (
           <>
+            {bloqueEstado}
+
             <Calendario
               onAnalizar={(p) =>
                 analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id })
               }
               analizandoId={analizandoId}
             />
+          </>
+        )}
 
-            <div ref={panelRef} />
+        {/* VISTA DEDICADA DEL ANALISIS ───────────────────────────────
+            Se entra al arrancar analyze(), no al terminar: asi el progreso
+            y cualquier fallo se ven aqui en vez de en la pantalla anterior.
+            `data` vive en este componente, de modo que cambiar de vista no
+            pierde el analisis. */}
+        {mainTab === "analisis" && (
+          <>
+            <button
+              onClick={volverAlCalendario}
+              style={{
+                background: C.card2, color: C.text, border: `1px solid ${C.border}`,
+                borderRadius: 8, padding: "9px 16px", fontWeight: 700, fontSize: 13,
+                cursor: "pointer", marginBottom: 18,
+              }}
+            >
+              ← Volver
+            </button>
+
+            {bloqueEstado}
 
             {data && (
               <>
@@ -1870,26 +1925,6 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
             }}>
               {loading ? "Analizando..." : "⚡ ANALIZAR 8+ MERCADOS CON IA"}
             </button>
-            {loading && progress && (
-              <div style={{ marginTop: 12, textAlign: "center", fontSize: 13, color: C.muted }}>
-                <div style={{ width: "100%", height: 3, background: C.border, borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>
-                  <div style={{ height: "100%", background: C.accent, animation: "progress 18s linear forwards", width: "0%" }} />
-                </div>
-                <style>{`@keyframes progress { to { width: 95%; } }`}</style>
-                {progress}
-              </div>
-            )}
-            {error && <div style={{ marginTop: 12, color: C.red, fontSize: 13, background: C.redDim, borderRadius: 8, padding: "10px 14px" }}>{error}</div>}
-            {aviso && (
-              <div style={{
-                marginTop: 12, fontSize: 13, borderRadius: 8, padding: "10px 14px",
-                color: aviso.nivel === "error" ? C.amber : C.muted,
-                background: aviso.nivel === "error" ? C.amberDim : C.card2,
-                border: `1px solid ${aviso.nivel === "error" ? C.amber + "55" : C.border}`,
-              }}>
-                {aviso.nivel === "error" ? "⚠️ " : "ℹ️ "}{aviso.texto}
-              </div>
-            )}
           </div>
         )}
       </div>
