@@ -1451,7 +1451,12 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
               {[["analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
-                <button key={k} onClick={() => setMainTab(k)} style={{
+                <button key={k} onClick={() => {
+                  setMainTab(k);
+                  // El calendario es lo primero de la vista: si el usuario
+                  // estaba abajo, "Analizar" lo devuelve al inicio.
+                  if (k === "analizar") window.scrollTo({ top: 0, behavior: "smooth" });
+                }} style={{
                   background: mainTab === k ? "linear-gradient(135deg,#16a34a,#22c55e)" : "transparent",
                   color: mainTab === k ? "#fff" : C.muted,
                   border: `1px solid ${mainTab === k ? "#22c55e" : C.border}`,
@@ -1500,49 +1505,6 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
 
         {mainTab === "analizar" && (
           <>
-            {/* FORM */}
-            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 18, color: C.accent }}>🔍 Partido a analizar</div>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Equipo Local *</div>
-                  <input style={inputS} value={form.local} onChange={e => setForm(f => ({ ...f, local: e.target.value }))} placeholder="Ej: Real Madrid" />
-                </div>
-                <div>
-                  <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Equipo Visitante *</div>
-                  <input style={inputS} value={form.visitante} onChange={e => setForm(f => ({ ...f, visitante: e.target.value }))} placeholder="Ej: Atlético Madrid" />
-                </div>
-              </div>
-
-              <button onClick={() => analyze()} disabled={loading || !form.local || !form.visitante} style={{
-                width: "100%", background: loading ? C.dim : "linear-gradient(135deg,#16a34a,#22c55e)", color: "#fff", border: "none", borderRadius: 10,
-                padding: "14px", fontWeight: 800, fontSize: 15, cursor: loading ? "not-allowed" : "pointer",
-                boxShadow: loading ? "none" : "0 4px 20px rgba(34,197,94,0.45)", letterSpacing: ".03em"
-              }}>
-                {loading ? "Analizando..." : "⚡ ANALIZAR 8+ MERCADOS CON IA"}
-              </button>
-              {loading && progress && (
-                <div style={{ marginTop: 12, textAlign: "center", fontSize: 13, color: C.muted }}>
-                  <div style={{ width: "100%", height: 3, background: C.border, borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>
-                    <div style={{ height: "100%", background: C.accent, animation: "progress 18s linear forwards", width: "0%" }} />
-                  </div>
-                  <style>{`@keyframes progress { to { width: 95%; } }`}</style>
-                  {progress}
-                </div>
-              )}
-              {error && <div style={{ marginTop: 12, color: C.red, fontSize: 13, background: C.redDim, borderRadius: 8, padding: "10px 14px" }}>{error}</div>}
-              {aviso && (
-                <div style={{
-                  marginTop: 12, fontSize: 13, borderRadius: 8, padding: "10px 14px",
-                  color: aviso.nivel === "error" ? C.amber : C.muted,
-                  background: aviso.nivel === "error" ? C.amberDim : C.card2,
-                  border: `1px solid ${aviso.nivel === "error" ? C.amber + "55" : C.border}`,
-                }}>
-                  {aviso.nivel === "error" ? "⚠️ " : "ℹ️ "}{aviso.texto}
-                </div>
-              )}
-            </div>
-
             <Calendario
               onAnalizar={(p) =>
                 analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id })
@@ -1881,6 +1843,53 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
               ))}
             </div>
             <div style={{ textAlign: "center", fontSize: 11, color: C.dim, marginTop: 14 }}>⚠️ Sugerencias basadas en análisis con IA. Juega responsablemente.</div>
+          </div>
+        )}
+
+        {/* Buscador manual por nombres. Vive al pie: el calendario es la via
+            principal y esto queda como alternativa para partidos que no
+            aparecen en las ligas listadas. Su logica no cambia. */}
+        {mainTab === "analizar" && (
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
+            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 18, color: C.accent }}>🔍 Partido a analizar</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Equipo Local *</div>
+                <input style={inputS} value={form.local} onChange={e => setForm(f => ({ ...f, local: e.target.value }))} placeholder="Ej: Real Madrid" />
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Equipo Visitante *</div>
+                <input style={inputS} value={form.visitante} onChange={e => setForm(f => ({ ...f, visitante: e.target.value }))} placeholder="Ej: Atlético Madrid" />
+              </div>
+            </div>
+
+            <button onClick={() => analyze()} disabled={loading || !form.local || !form.visitante} style={{
+              width: "100%", background: loading ? C.dim : "linear-gradient(135deg,#16a34a,#22c55e)", color: "#fff", border: "none", borderRadius: 10,
+              padding: "14px", fontWeight: 800, fontSize: 15, cursor: loading ? "not-allowed" : "pointer",
+              boxShadow: loading ? "none" : "0 4px 20px rgba(34,197,94,0.45)", letterSpacing: ".03em"
+            }}>
+              {loading ? "Analizando..." : "⚡ ANALIZAR 8+ MERCADOS CON IA"}
+            </button>
+            {loading && progress && (
+              <div style={{ marginTop: 12, textAlign: "center", fontSize: 13, color: C.muted }}>
+                <div style={{ width: "100%", height: 3, background: C.border, borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>
+                  <div style={{ height: "100%", background: C.accent, animation: "progress 18s linear forwards", width: "0%" }} />
+                </div>
+                <style>{`@keyframes progress { to { width: 95%; } }`}</style>
+                {progress}
+              </div>
+            )}
+            {error && <div style={{ marginTop: 12, color: C.red, fontSize: 13, background: C.redDim, borderRadius: 8, padding: "10px 14px" }}>{error}</div>}
+            {aviso && (
+              <div style={{
+                marginTop: 12, fontSize: 13, borderRadius: 8, padding: "10px 14px",
+                color: aviso.nivel === "error" ? C.amber : C.muted,
+                background: aviso.nivel === "error" ? C.amberDim : C.card2,
+                border: `1px solid ${aviso.nivel === "error" ? C.amber + "55" : C.border}`,
+              }}>
+                {aviso.nivel === "error" ? "⚠️ " : "ℹ️ "}{aviso.texto}
+              </div>
+            )}
           </div>
         )}
       </div>
