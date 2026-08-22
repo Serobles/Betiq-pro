@@ -25,6 +25,8 @@ const C = {
   greenDim: "#14532d",
   red:      "#f87171",
   redDim:   "#4c0519",
+  amber:    "#fbbf24",
+  amberDim: "#422006",
   blue:     "#60a5fa",
   purple:   "#c084fc",
   text:     "#e2f0fb",
@@ -687,6 +689,9 @@ export default function BetFutProV3() {
   const [progress, setProgress] = useState("");
   const [data, setData] = useState(null);
   const [error, setError] = useState("");
+  // Aviso no bloqueante: el analisis sigue con el respaldo web, pero el
+  // usuario ve por que faltan los datos reales.
+  const [aviso, setAviso] = useState(null);
   const [tab, setTab] = useState("mercados");
   const [postMode, setPostMode] = useState("telegram");
   const [copied, setCopied] = useState(false);
@@ -747,7 +752,7 @@ export default function BetFutProV3() {
     }
 
     // ── Verificar caché ───────────────────────────────────
-    setLoading(true); setError(""); setData(null);
+    setLoading(true); setError(""); setAviso(null); setData(null);
     setProgress("⚡ Verificando caché de análisis...");
     const cached = await getCachedAnalysis(form.local, form.visitante);
     if (cached) {
@@ -848,17 +853,30 @@ export default function BetFutProV3() {
 
         const footballText = await footballRes.text();
 
-        if (!footballText.trimStart().startsWith("<") && footballRes.ok) {
+        // Se parsea aunque la respuesta no sea ok: el motivo del fallo viaja
+        // en el cuerpo y perderlo era justo lo que dejaba al usuario con un
+        // mensaje generico.
+        if (!footballText.trimStart().startsWith("<")) {
           footballData = JSON.parse(footballText);
         }
       } catch { /* fallback a web search */ }
+
+      // El backend ya distingue "la API fallo" de "no hay datos". Ese motivo
+      // se enseña en pantalla en vez de quedarse solo en el JSON.
+      if (footballData?.error_api) {
+        setAviso({ nivel: "error", texto: `Sin datos de API-Football — ${footballData.mensaje}` });
+      } else if (footballData && !footballData.encontrado && footballData.mensaje) {
+        setAviso({ nivel: "info", texto: footballData.mensaje });
+      } else if (footballData?.avisos?.length) {
+        setAviso({ nivel: "error", texto: `Datos incompletos de API-Football — ${footballData.avisos.join(" · ")}` });
+      }
 
       if (footballData?.encontrado) {
         // Construir resumen estructurado con datos reales de API-Football
         const f = footballData;
         const formatLesionados = (lista) =>
           lista.length > 0
-            ? lista.map(l => `${l.nombre} (${l.posicion || "N/D"}) — ${l.motivo || "Lesionado"}`).join(", ")
+            ? lista.map(l => `${l.nombre} — ${l.motivo || "Lesionado"} (${l.estado || "Estado no informado"})`).join(", ")
             : "Sin lesionados confirmados en API-Football";
 
         // Forma, tabla y promedios en una linea compacta por equipo
@@ -1248,6 +1266,16 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 </div>
               )}
               {error && <div style={{ marginTop: 12, color: C.red, fontSize: 13, background: C.redDim, borderRadius: 8, padding: "10px 14px" }}>{error}</div>}
+              {aviso && (
+                <div style={{
+                  marginTop: 12, fontSize: 13, borderRadius: 8, padding: "10px 14px",
+                  color: aviso.nivel === "error" ? C.amber : C.muted,
+                  background: aviso.nivel === "error" ? C.amberDim : C.card2,
+                  border: `1px solid ${aviso.nivel === "error" ? C.amber + "55" : C.border}`,
+                }}>
+                  {aviso.nivel === "error" ? "⚠️ " : "ℹ️ "}{aviso.texto}
+                </div>
+              )}
             </div>
 
             {data && (

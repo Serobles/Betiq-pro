@@ -379,6 +379,16 @@ export default async function handler(req, res) {
     // Una baja confirmada pesa mas que una duda. No se han observado copias
     // discrepantes, pero si algun dia llegan nos quedamos con la peor y con
     // la que traiga motivo concreto, no con la que llegue primero.
+    // "Missing Fixture" = no juega seguro; "Questionable" = duda hasta el
+    // once inicial. La diferencia importa para el analisis, asi que se
+    // traduce en vez de perderse.
+    const ESTADOS = {
+      "missing fixture": "Baja confirmada",
+      questionable: "En duda",
+    };
+    const estadoBaja = (t) =>
+      ESTADOS[normalizar(t)] || (t ? String(t) : "Estado no informado");
+
     const GRAVEDAD = { "missing fixture": 2, questionable: 1 };
     const gravedadDe = (r) => GRAVEDAD[normalizar(r.player?.type)] ?? 0;
     const tieneMotivo = (r) => Boolean((r.player?.reason || "").trim());
@@ -406,7 +416,11 @@ export default async function handler(req, res) {
       }
       return [...porJugador.values()].map((r) => ({
         nombre: r.player?.name,
-        posicion: r.player?.type,
+        // OJO: player.type es el TIPO DE BAJA, no la demarcacion. Antes se
+        // mandaba como `posicion` y la IA acababa leyendo que Mount jugaba
+        // de "Questionable". /injuries no trae la posicion por ningun lado,
+        // asi que no se manda ninguna: mejor sin dato que con uno inventado.
+        estado: estadoBaja(r.player?.type),
         motivo: r.player?.reason,
       }));
     };
