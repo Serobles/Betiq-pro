@@ -570,11 +570,30 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
         <>
           {/* Fila de dias. Se desliza a lo ancho: en un telefono las 5
               pestanas no caben, y comprimirlas las dejaria ilegibles. */}
-          <style>{`.cal-dias::-webkit-scrollbar { display: none; }`}</style>
+          {/* Las medidas van en CSS y no inline porque cambian por ancho de
+              pantalla: amplias en escritorio, contenidas en movil para que la
+              fila siga deslizandose. El centrado es con margin:auto en los
+              extremos, no con justify-content:center — ese recorta el borde
+              izquierdo cuando la fila desborda y las primeras pestanas quedan
+              inalcanzables. margin:auto centra cuando sobra sitio y se anula
+              solo al desbordar. */}
+          <style>{`
+            .cal-dias::-webkit-scrollbar { display: none; }
+            .cal-dias .cal-dia:first-child { margin-left: auto; }
+            .cal-dias .cal-dia:last-child { margin-right: auto; }
+            .cal-dia { min-width: 84px; padding: 9px 12px; }
+            .cal-dia-nombre { font-size: 12px; }
+            .cal-dia-fecha { font-size: 13px; }
+            @media (min-width: 768px) {
+              .cal-dia { min-width: 112px; padding: 12px 18px; }
+              .cal-dia-nombre { font-size: 13px; }
+              .cal-dia-fecha { font-size: 15px; }
+            }
+          `}</style>
           <div
             className="cal-dias"
             style={{
-              display: "flex", gap: 6, overflowX: "auto", scrollbarWidth: "none",
+              display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none",
               WebkitOverflowScrolling: "touch",
               borderBottom: `1px solid ${C.border}`,
               paddingBottom: 10, marginBottom: 14,
@@ -588,19 +607,20 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
                   key={d.fecha}
                   ref={activa ? pestanaActiva : null}
                   onClick={() => onDiaSel(i)}
+                  className="cal-dia"
                   style={{
-                    flex: "0 0 auto", minWidth: 76,
+                    flex: "0 0 auto",
                     display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-                    padding: "8px 12px", borderRadius: 9, cursor: "pointer",
+                    borderRadius: 9, cursor: "pointer",
                     background: activa ? "linear-gradient(135deg,#16a34a,#22c55e)" : C.card2,
                     border: `1px solid ${activa ? "#22c55e" : C.border}`,
                     color: activa ? "#fff" : C.muted,
                   }}
                 >
-                  <span style={{ fontSize: 11, fontWeight: 800, letterSpacing: ".04em", whiteSpace: "nowrap" }}>
+                  <span className="cal-dia-nombre" style={{ fontWeight: 800, letterSpacing: ".04em", whiteSpace: "nowrap" }}>
                     {hoy ? "HOY" : diaCorto(d.fecha)}
                   </span>
-                  <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", opacity: activa ? 0.95 : 0.8 }}>
+                  <span className="cal-dia-fecha" style={{ fontWeight: 600, whiteSpace: "nowrap", opacity: activa ? 0.95 : 0.8 }}>
                     {fechaCorta(d.fecha)}
                   </span>
                 </button>
