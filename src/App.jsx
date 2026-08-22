@@ -1161,10 +1161,22 @@ export default function BetFutProV3() {
             // se cogen los primeros valores en vez de descartar el mercado
             const casan = m.valores.filter(v => lineas.includes(v.value));
             const vals = (casan.length ? casan : m.valores).slice(0, MAX_VALORES);
-            return `- ${etiqueta}: ${vals.map(v => `${v.value}=${v.odd}`).join(", ")}`;
+            // Cada linea dice de que casa salio, para que la IA no atribuya
+            // todo a Bet365 al rellenar cuota_fuente.
+            return `- ${etiqueta}: ${vals
+              .map(v => `${v.value}=${v.odd}${v.casa ? ` (${v.casa})` : ""}`)
+              .join(", ")}`;
           })
           .filter(Boolean)
           .join("\n") || "Sin cuotas disponibles";
+
+        // Las cuotas ya no vienen solo de Bet365: se comparan dos casas y se
+        // usa la mas conservadora de cada linea. La etiqueta lo refleja en vez
+        // de seguir anunciando una sola casa.
+        const casasTexto = (f.cuotas_casas || []).join(" y ");
+        const tituloCuotas = casasTexto
+          ? `CUOTAS CLAVE de ${casasTexto} — entre parentesis la casa de cada cuota, usala como cuota_fuente (usa EXACTAMENTE estas lineas, no inventes otras):`
+          : "CUOTAS CLAVE (usa EXACTAMENTE estas lineas, no inventes otras):";
 
         searchData = `DATOS REALES DE API-FOOTBALL (verificados):
 
@@ -1177,7 +1189,7 @@ ${formatStats(f.stats_local, f.posicion_local)}
 FORMA Y ESTADISTICAS — ${f.fixture?.visitante?.nombre?.toUpperCase()} (VISITANTE):
 ${formatStats(f.stats_visitante, f.posicion_visitante)}
 
-CUOTAS CLAVE BET365 (usa EXACTAMENTE estas lineas, no inventes otras):
+${tituloCuotas}
 ${bloqueCuotas}
 
 BAJAS ${f.fixture?.local?.nombre?.toUpperCase()}:
