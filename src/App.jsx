@@ -34,13 +34,40 @@ const C = {
   dim:      "#4a7090",
 };
 
-const MERCADOS_ICONS = {
-  "1X2": "🏆", "Doble Oportunidad": "🔄", "Ambos Marcan (BTTS)": "⚽",
-  "Más de 2.5 Goles": "📈", "Menos de 2.5 Goles": "📉",
-  "Más de 1.5 Goles": "🎯", "Hándicap Asiático": "⚖️",
-  "Córners +9.5": "📐", "Tarjetas +3.5": "🟨",
-  "Gana en el Descanso": "🕐", "Primer Gol Antes Min 30": "⚡",
-  "HT/FT": "📊"
+// El icono se elige por el TIPO de mercado, nunca por la linea numerica.
+// La IA genera el nombre con la linea real del partido ("Corners Over 8.5",
+// "Goles Over 2.5"), asi que una tabla con la linea fija dentro de la clave
+// ("Córners +9.5") no casaba con nada y todo salia con el 📌 generico.
+// Se busca la palabra clave del mercado y las lineas dan igual.
+//
+// El orden IMPORTA: se aplica la primera regla que casa. Los mercados con
+// sustantivo propio (corners, tarjetas) van antes que los genericos, porque
+// "Corners Over 8.5" tambien contiene "over" y si no seria una flecha.
+const MERCADOS_ICONS = [
+  [/corner|esquina/,                  "🚩"],
+  [/tarjeta|card/,                    "🟨"],
+  [/handicap|hcp/,                    "⚖️"],
+  [/ambos marcan|btts/,               "⚽"],
+  [/doble oportunidad/,               "🔄"],
+  [/draw no bet|empate no bet/,       "🛡️"],
+  [/ht ?.? ?ft|descanso.*final/,      "📊"],
+  [/descanso|medio tiempo|primera parte|primer tiempo/, "🕐"],
+  [/primer gol|marca primero/,        "⚡"],
+  // Under antes que over: "Goles Under 2.5" lleva flecha hacia abajo.
+  [/\bunder\b|menos de/,              "📉"],
+  [/\bover\b|mas de|\bgoles?\b/,      "📈"],
+  [/1x2|victoria|gana|ganador/,       "🏆"],
+];
+
+const iconoMercado = (nombre) => {
+  const n = (nombre || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  if (!n) return "📌";
+  return MERCADOS_ICONS.find(([re]) => re.test(n))?.[1] || "📌";
 };
 
 const SYSTEM_PROMPT = `Eres un analista de apuestas deportivas. Analiza el partido y devuelve SOLO el bloque JSON exacto.
@@ -126,7 +153,7 @@ function MercadoCard({ m, partido, rank, bank = 0, onGuardar, guardadoId }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}>
         <div>
           <div style={{ fontSize: 11, color: rankColors[rank] || C.dim, fontWeight: 700, marginBottom: 4 }}>{rankLabels[rank] || ""}</div>
-          <div style={{ fontWeight: 800, fontSize: 15, color: C.text }}>{MERCADOS_ICONS[m.nombre] || "📌"} {m.nombre}</div>
+          <div style={{ fontWeight: 800, fontSize: 15, color: C.text }}>{iconoMercado(m.nombre)} {m.nombre}</div>
           <div style={{ fontSize: 12, color: C.muted, marginTop: 3 }}>{m.descripcion}</div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0, marginLeft: 12 }}>
@@ -1381,7 +1408,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                           {otros.map((m, i) => (
                             <div key={m.nombre} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 16px", borderBottom: i < otros.length - 1 ? `1px solid ${C.border}` : "none" }}>
                               <div>
-                                <div style={{ fontSize: 13, color: C.text }}>{MERCADOS_ICONS[m.nombre] || "📌"} {m.nombre}</div>
+                                <div style={{ fontSize: 13, color: C.text }}>{iconoMercado(m.nombre)} {m.nombre}</div>
                                 <div style={{ fontSize: 11, color: C.dim }}>{m.descripcion}</div>
                               </div>
                               <div style={{ textAlign: "right", flexShrink: 0 }}>
