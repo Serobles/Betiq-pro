@@ -366,6 +366,104 @@ function TransaccionCard({ r, onResult, onDelete, onUpdateField, records, save }
   );
 }
 
+// ── Calendario de partidos ────────────────────────────────────────────
+// Lista de 5 dias (anteayer .. pasado manana) en la hora local del usuario.
+// La zona sale del navegador y se le pasa a la API, que es quien agrupa por
+// dia: agrupar por UTC mandaria los partidos nocturnos sudamericanos al dia
+// siguiente.
+const ZONA_NAVEGADOR =
+  Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+
+const ETIQUETA_DIA = ["Anteayer", "Ayer", "Hoy", "Manana", "Pasado manana"];
+
+const Calendario = () => {
+  const [dias, setDias] = useState(null);
+  const [zona, setZona] = useState(ZONA_NAVEGADOR);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const r = await fetch("/api/fixtures", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ timezone: ZONA_NAVEGADOR }),
+        });
+        const txt = await r.text();
+        if (txt.trimStart().startsWith("<")) throw new Error("sin backend");
+        const d = JSON.parse(txt);
+        if (!vivo) return;
+        if (d.mensaje || d.error) setError(d.mensaje || d.error);
+        else { setDias(d.dias); setZona(d.zona_horaria); }
+      } catch {
+        if (vivo) setError("No se pudo cargar el calendario.");
+      } finally {
+        if (vivo) setCargando(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  // El dia llega como "2026-08-22". Se formatea anclado a mediodia UTC para
+  // que ninguna zona lo desplace al dia de al lado.
+  const titulo = (fecha) =>
+    new Intl.DateTimeFormat("es", {
+      timeZone: "UTC", weekday: "long", day: "numeric", month: "long",
+    }).format(new Date(`${fecha}T12:00:00Z`));
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18, flexWrap: "wrap", gap: 8 }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: C.accent }}>📅 Calendario de partidos</div>
+        <div style={{ fontSize: 11, color: C.dim }}>Hora local · {zona}</div>
+      </div>
+
+      {cargando && <div style={{ fontSize: 13, color: C.muted }}>Cargando partidos...</div>}
+
+      {!cargando && error && (
+        <div style={{ fontSize: 13, color: C.amber, background: C.amberDim, border: `1px solid ${C.amber}55`, borderRadius: 8, padding: "10px 14px" }}>
+          ⚠️ {error}
+        </div>
+      )}
+
+      {!cargando && !error && (dias || []).map((d, i) => (
+        <div key={d.fecha} style={{ marginBottom: i < 4 ? 18 : 0 }}>
+          <div style={{
+            display: "flex", alignItems: "baseline", gap: 8,
+            borderBottom: `1px solid ${C.border}`, paddingBottom: 6, marginBottom: 8,
+          }}>
+            <span style={{ fontWeight: 800, fontSize: 13, color: i === 2 ? C.accent : C.text }}>
+              {ETIQUETA_DIA[i]}
+            </span>
+            <span style={{ fontSize: 12, color: C.dim, textTransform: "capitalize" }}>{titulo(d.fecha)}</span>
+          </div>
+
+          {d.ligas.length === 0 ? (
+            <div style={{ fontSize: 12, color: C.dim, padding: "6px 2px" }}>No hay partidos</div>
+          ) : (
+            d.ligas.map((g) => (
+              <div key={g.liga} style={{ marginBottom: 10 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: C.blue, padding: "4px 2px" }}>{g.liga}</div>
+                {g.partidos.map((p) => (
+                  <div key={p.id} style={{
+                    display: "grid", gridTemplateColumns: "52px 1fr", gap: 10,
+                    alignItems: "center", padding: "5px 2px 5px 10px",
+                  }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>{p.hora}</span>
+                    <div style={{ fontSize: 13, color: C.text }}>{p.local} <span style={{ color: C.dim }}>vs</span> {p.visitante}</div>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
 function Historial() {
   const [records, setRecords]   = useState([]);
   const [loaded, setLoaded]     = useState(false);
@@ -1304,6 +1402,8 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 </div>
               )}
             </div>
+
+            <Calendario />
 
             {data && (
               <>
