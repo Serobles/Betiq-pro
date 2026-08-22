@@ -8,16 +8,53 @@
 
 const BASE = "https://v3.football.api-sports.io";
 
+// Orden de la lista = orden en pantalla. Colombia primero, el resto de
+// Sudamerica despues y los torneos continentales al final.
+//
+// Ojo con Paraguay: el 250 (Apertura) esta muerto — su temporada cerro el
+// 24-may-2026 y devuelve 0 partidos — pero la API lo sigue marcando como
+// `current`. El vivo es el 252 (Clausura). Por eso las ligas se verifican por
+// fechas reales y por que devuelvan fixtures, nunca por ese flag.
 const LIGAS = [
   { id: 239, nombre: "Colombia · Primera A" },
   { id: 71, nombre: "Brasil · Serie A" },
-  { id: 39, nombre: "Premier League" },
+  { id: 128, nombre: "Argentina · Liga Profesional" },
+  { id: 242, nombre: "Ecuador · Liga Pro" },
+  { id: 265, nombre: "Chile · Primera División" },
+  { id: 268, nombre: "Uruguay · Primera División" },
+  { id: 281, nombre: "Perú · Primera División" },
+  { id: 252, nombre: "Paraguay · Clausura" },
+  { id: 344, nombre: "Bolivia · Primera División" },
+  { id: 299, nombre: "Venezuela · Primera División" },
+  { id: 13, nombre: "Copa Libertadores" },
+  { id: 11, nombre: "Copa Sudamericana" },
 ];
 
+// La API corta las rafagas: pedir las 12 ligas a la vez pierde entre 1 y 4 de
+// forma reproducible, incluso con la ventana de cuota recien reseteada (12 en
+// paralelo -> 8/12 y 11/12 en dos pruebas; escalonadas -> 12/12). No es la
+// cuota diaria ni el limite por minuto, es la concurrencia. Por eso las ligas
+// salen en tandas pequenas con una pausa entre ellas.
+const TANDA = 4;
+const PAUSA_MS = 250;
+
 // Cache por instancia: ni las zonas horarias ni la temporada en curso cambian
-// de un minuto a otro, asi que en caliente cada carga cuesta 3 peticiones.
+// de un minuto a otro.
 let zonasValidas = null;
 const seasonPorLiga = new Map();
+
+// Cache CORTO de la lista de partidos, por zona horaria y ventana de dias.
+// Nada que ver con el cache de analisis por fixture_id: aquel guarda el
+// pronostico de la IA durante horas, este solo evita repetir las 12 peticiones
+// del listado cuando el usuario va y viene (el "Volver" de la vista de
+// analisis desmonta el calendario y lo haria pedir todo otra vez).
+//
+// 3 minutos es el equilibrio: cubre de sobra la navegacion ida y vuelta, y
+// deja el marcador en vivo desfasado como mucho ese rato.
+const TTL_MS = 3 * 60 * 1000;
+const listaCache = new Map();
+
+const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
 export default async function handler(req, res) {
   if (req.method !== "POST") {
@@ -81,11 +118,19 @@ export default async function handler(req, res) {
       new Date(ancla.getTime() + n * 86400000).toISOString().slice(0, 10)
     );
 
+    // Servir del cache si sigue fresco. La clave lleva zona y ventana: dos
+    // usuarios en zonas distintas ven dias distintos, y al cambiar el dia la
+    // clave cambia sola.
+    const clave = `${zona}|${dias[0]}`;
+    const guardado = listaCache.get(clave);
+    if (guardado && guardado.expira > Date.now()) {
+      return res.status(200).json({ ...guardado.payload, desde_cache: true });
+    }
+
     // `season` es obligatorio junto a league+from+to, y no se puede pedir mas
     // de una liga por llamada (el parametro repetido se pisa), asi que va una
     // peticion por liga.
-    const porLiga = await Promise.all(
-      LIGAS.map(async (liga) => {
+    const cargarLiga = async (liga) => {
         if (!seasonPorLiga.has(liga.id)) {
           const l = await pedir(`/leagues?id=${liga.id}&current=true`);
           const year = l.response?.[0]?.seasons?.[0]?.year;
@@ -121,18 +166,39 @@ export default async function handler(req, res) {
           estado: f.fixture.status.short,
           minuto: f.fixture.status.elapsed,
         }));
-      })
-    );
+    };
+
+    // Tandas pequenas + allSettled: escalonar evita que la API corte, y si aun
+    // asi cae una liga se pintan las demas en vez de quedarse el calendario en
+    // blanco. Antes un solo fallo tumbaba las once restantes.
+    const avisos = [];
+    const porLiga = [];
+    for (let i = 0; i < LIGAS.length; i += TANDA) {
+      const tanda = LIGAS.slice(i, i + TANDA);
+      const res = await Promise.allSettled(tanda.map(cargarLiga));
+      res.forEach((r, j) => {
+        if (r.status === "fulfilled") {
+          porLiga.push(r.value);
+        } else {
+          porLiga.push([]);
+          avisos.push(`${tanda[j].nombre}: ${r.reason?.message || "no respondio"}`);
+        }
+      });
+      if (i + TANDA < LIGAS.length) await dormir(PAUSA_MS);
+    }
 
     // Jerarquia dia -> liga -> partidos. Las ligas salen en el orden en que
     // estan declaradas en LIGAS (el mismo para todos los dias, asi la lista no
     // baila de un dia a otro); cuando haya mas ligas se decidira la prioridad.
     // Una liga sin partidos ese dia no aparece: el dia queda vacio solo si
     // ninguna tiene.
-    return res.status(200).json({
+    const payload = {
       zona_horaria: zona,
       zona_solicitada: solicitada,
       zona_soportada: soportada,
+      // Ligas que no respondieron. Si esto no esta vacio, faltan partidos por
+      // un fallo, no porque no los haya.
+      avisos,
       dias: dias.map((fecha) => ({
         fecha,
         ligas: LIGAS.map((liga, i) => ({
@@ -142,7 +208,15 @@ export default async function handler(req, res) {
             .sort((a, b) => a.hora.localeCompare(b.hora)),
         })).filter((l) => l.partidos.length > 0),
       })),
-    });
+    };
+
+    // Solo se cachea una carga COMPLETA: guardar una a medias congelaria las
+    // ligas caidas durante todo el TTL en vez de reintentarlas.
+    if (!avisos.length) {
+      listaCache.set(clave, { expira: Date.now() + TTL_MS, payload });
+    }
+
+    return res.status(200).json({ ...payload, desde_cache: false });
   } catch (error) {
     return res.status(200).json({
       dias: [],

@@ -459,6 +459,9 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
 
 const Calendario = ({ onAnalizar, analizandoId }) => {
   const [dias, setDias] = useState(null);
+  // Ligas que no respondieron. Sin esto desapareceran de la lista en silencio
+  // y pareceria que ese dia no tienen partidos.
+  const [ligasCaidas, setLigasCaidas] = useState([]);
   const [zona, setZona] = useState(ZONA_NAVEGADOR);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -477,7 +480,11 @@ const Calendario = ({ onAnalizar, analizandoId }) => {
         const d = JSON.parse(txt);
         if (!vivo) return;
         if (d.mensaje || d.error) setError(d.mensaje || d.error);
-        else { setDias(d.dias); setZona(d.zona_horaria); }
+        else {
+          setDias(d.dias);
+          setZona(d.zona_horaria);
+          setLigasCaidas(d.avisos || []);
+        }
       } catch {
         if (vivo) setError("No se pudo cargar el calendario.");
       } finally {
@@ -510,6 +517,16 @@ const Calendario = ({ onAnalizar, analizandoId }) => {
       {!cargando && error && (
         <div style={{ fontSize: 13, color: C.amber, background: C.amberDim, border: `1px solid ${C.amber}55`, borderRadius: 8, padding: "10px 14px" }}>
           ⚠️ {error}
+        </div>
+      )}
+
+      {!cargando && !error && ligasCaidas.length > 0 && (
+        <div style={{
+          marginBottom: 14, fontSize: 12, borderRadius: 8, padding: "9px 12px",
+          color: C.amber, background: C.amberDim, border: `1px solid ${C.amber}55`,
+        }}>
+          ⚠️ No se pudieron cargar {ligasCaidas.length === 1 ? "esta liga" : "estas ligas"}, así que sus partidos faltan de la lista:{" "}
+          {ligasCaidas.map((a) => a.split(":")[0]).join(", ")}
         </div>
       )}
 
