@@ -465,7 +465,7 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
   );
 };
 
-const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll, onObjetivoCumplido }) => {
+const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll, onObjetivoCumplido, onLigasPorDia }) => {
   const [dias, setDias] = useState(null);
   // Ligas que no respondieron. Sin esto desapareceran de la lista en silencio
   // y pareceria que ese dia no tienen partidos.
@@ -493,6 +493,9 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
           setDias(d.dias);
           setZona(d.zona_horaria);
           setLigasCaidas(d.avisos || []);
+          // Copia ligera para el padre (menu ☰): nombres de liga por dia.
+          // Sobrevive al desmontaje de este componente (historial, analisis).
+          onLigasPorDia?.((d.dias || []).map((x) => x.ligas.map((l) => l.liga)));
         }
       } catch {
         if (vivo) setError("No se pudo cargar el calendario.");
@@ -1049,6 +1052,11 @@ export default function BetFutProV3() {
   // Ligas con partidos en el dia del analisis en curso, para el panel.
   // Vacio cuando el analisis nace del buscador (no hay dia de contexto).
   const [ligasDelDia, setLigasDelDia] = useState([]);
+  // Nombres de liga por dia (indice = pestana de dia), subidos por Calendario
+  // al cargar. Viven aqui para que el menu ☰ los tenga aunque el calendario
+  // este desmontado (historial, analisis).
+  const [ligasPorDia, setLigasPorDia] = useState([]);
+  const [menuLigas, setMenuLigas] = useState(false);
 
   const guardarEnHistorial = (mercado) => {
     if (!savedAnalysis) return;
@@ -1558,6 +1566,21 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
     setMainTab("analizar");
   };
 
+  // Menu ☰ (solo movil). Las ligas del DIA RELEVANTE: en el calendario el dia
+  // visible, en la vista de analisis el dia del analisis (la misma lista que
+  // recibe el panel lateral), y en vistas sin dia (historial), HOY.
+  const ligasDelMenu = mainTab === "analisis"
+    ? ligasDelDia
+    : (ligasPorDia[mainTab === "analizar" ? diaSel : 2] || []);
+
+  const elegirLigaMenu = (nombre) => {
+    setMenuLigas(false);
+    // En una vista sin dia el salto es al calendario de HOY; irALiga reusa el
+    // ancla unificada (objetivoScroll) del 3C y el panel lateral.
+    if (mainTab === "historial") setDiaSel(2);
+    irALiga(nombre);
+  };
+
   const volverAlCalendario = () => {
     // Si el analisis nacio de una tarjeta del calendario se vuelve a ella
     // (el scroll lo hace Calendario cuando los dias estan pintados); si nacio
@@ -1652,7 +1675,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 <text x="488" y="386" fontFamily="'Bitcount Prop Single', 'Courier New', monospace" fontSize="26" fill="#7E96A8">ANALISIS Y PRONOSTICOS DE FUTBOL</text>
               </svg>
             </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0, position: "relative" }}>
               {[["analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
                 <button key={k} className={k === "analizar" ? "hdr-analizar" : undefined} onClick={() => {
                   // Analizar comparte el atajo de inicio con el logo (HOY y
@@ -1696,11 +1719,65 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                   </button>
                 )
               )}
-              {/* ☰ solo movil: abrira el menu de ligas (proximo paso) */}
-              <button className="hdr-menu" aria-label="Menú" onClick={() => console.log("menu de ligas: pendiente")} style={{
-                background: "transparent", color: C.muted, border: `1px solid ${C.border}`,
+              {/* ☰ solo movil: ligas del dia relevante */}
+              <button className="hdr-menu" aria-label="Menú" aria-expanded={menuLigas} onClick={() => setMenuLigas(v => !v)} style={{
+                background: menuLigas ? C.card2 : "transparent", color: C.muted, border: `1px solid ${C.border}`,
                 borderRadius: 8, padding: "6px 10px", fontSize: 16, lineHeight: 1, cursor: "pointer"
               }}>☰</button>
+              {menuLigas && (
+                <>
+                  {/* Telon: cierra al tocar fuera (el propio ☰ queda debajo,
+                      asi el segundo toque tambien cierra). */}
+                  <div onClick={() => setMenuLigas(false)} style={{
+                    position: "fixed", inset: 0, zIndex: 40, background: "rgba(0,0,0,0.35)"
+                  }} />
+                  <div style={{
+                    position: "absolute", top: "calc(100% + 10px)", right: 0, zIndex: 50,
+                    width: "min(78vw, 300px)", maxHeight: "60vh", overflowY: "auto",
+                    background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+                    padding: 8, boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+                  }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.dim, letterSpacing: ".06em", padding: "8px 10px 6px" }}>
+                      LIGAS DEL DIA
+                    </div>
+                    {ligasDelMenu.length === 0 && (
+                      <div style={{ fontSize: 13, color: C.muted, padding: "10px 10px 12px" }}>
+                        Sin partidos este día
+                      </div>
+                    )}
+                    {ligasDelMenu.map((nombre) => {
+                      // Mismas dos columnas pais | liga del panel lateral,
+                      // con mas alto de fila para tocar con el dedo.
+                      const sep = nombre.indexOf(" · ");
+                      const pais = sep >= 0 ? nombre.slice(0, sep) : null;
+                      const liga = sep >= 0 ? nombre.slice(sep + 3) : nombre;
+                      return (
+                        <button
+                          key={nombre}
+                          onClick={() => elegirLigaMenu(nombre)}
+                          style={{
+                            display: "grid", gridTemplateColumns: "72px 1fr",
+                            columnGap: 10, alignItems: "baseline",
+                            width: "100%", textAlign: "left",
+                            background: "transparent", border: "none", cursor: "pointer",
+                            fontSize: 13, fontWeight: 600,
+                            padding: "11px 10px", borderRadius: 8,
+                          }}
+                        >
+                          {pais ? (
+                            <>
+                              <span style={{ color: C.muted, whiteSpace: "nowrap" }}>{pais}</span>
+                              <span style={{ color: C.blue, whiteSpace: "nowrap" }}>{liga}</span>
+                            </>
+                          ) : (
+                            <span style={{ gridColumn: "1 / -1", color: C.blue, whiteSpace: "nowrap" }}>{liga}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -1719,6 +1796,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 setLigasDelDia(ligas || []);
                 analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id });
               }}
+              onLigasPorDia={setLigasPorDia}
               analizandoId={analizandoId}
               diaSel={diaSel}
               onDiaSel={setDiaSel}
