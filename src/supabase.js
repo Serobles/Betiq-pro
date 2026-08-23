@@ -101,7 +101,18 @@ export const getProfile = async (userId) => {
 export const checkAndIncrementAnalysis = async (userId) => {
   if (!supabase) return { allowed: true }
   const profile = await getProfile(userId)
-  if (!profile) return { allowed: true }
+  // Sin fila en profiles = cerrado, no barra libre. Con el ON CONFLICT DO
+  // NOTHING del trigger, "sin perfil" es improbable pero posible, y la
+  // politica anterior (allowed: true) le daba analisis ilimitados justo al
+  // caso anomalo. sin_perfil deja que la UI lo distinga del limite normal.
+  if (!profile) {
+    return {
+      allowed: false,
+      limite: PLAN_LIMITS.free.analisis,
+      plan: 'free',
+      sin_perfil: true,
+    }
+  }
 
   const today = new Date().toISOString().split('T')[0]
   const limit = PLAN_LIMITS[profile.plan]?.analisis || 1

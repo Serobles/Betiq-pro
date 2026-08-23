@@ -1126,7 +1126,12 @@ export default function BetFutProV3() {
       if (!repetido) {
         const check = await checkAndIncrementAnalysis(user.id);
         if (!check.allowed) {
-          setError(`Alcanzaste tu límite de ${check.limite} análisis/día (plan ${check.plan?.toUpperCase()}). Actualiza tu plan para más.`);
+          // sin_perfil: la cuenta no tiene fila en profiles (el trigger de
+          // registro no llego a crearla). Re-entrar la regenera; el mensaje
+          // de limite normal aqui seria mentira.
+          setError(check.sin_perfil
+            ? "Tu perfil no se creó correctamente. Cierra sesión y vuelve a entrar para regenerarlo."
+            : `Alcanzaste tu límite de ${check.limite} análisis/día (plan ${check.plan?.toUpperCase()}). Actualiza tu plan para más.`);
           setAnalizandoId(null);
           analisisEnCurso.current = false;
           // No se cambia de vista: el aviso se pinta sobre el calendario, y se
