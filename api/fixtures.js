@@ -8,8 +8,10 @@
 
 const BASE = "https://v3.football.api-sports.io";
 
-// Orden de la lista = orden en pantalla. Colombia primero, el resto de
-// Sudamerica despues y los torneos continentales al final.
+// Orden de la lista = orden en pantalla. Colombia primero y el resto de
+// Sudamerica, despues las 5 grandes europeas, y los torneos continentales al
+// final. Las UEFA (Champions, Europa League, Conference) siguen en pausa
+// hasta que la API cargue su fase principal.
 //
 // Ojo con Paraguay: el 250 (Apertura) esta muerto — su temporada cerro el
 // 24-may-2026 y devuelve 0 partidos — pero la API lo sigue marcando como
@@ -26,6 +28,14 @@ const LIGAS = [
   { id: 252, nombre: "Paraguay · Clausura" },
   { id: 344, nombre: "Bolivia · Primera División" },
   { id: 299, nombre: "Venezuela · Primera División" },
+  // Europeas (verificadas 23-ago-2026 por fechas reales y fixtures):
+  // la Bundesliga 2026/27 arranca el 28-ago-2026 — hasta ese dia no pinta
+  // partidos, y ese dia se enciende sola sin tocar nada.
+  { id: 39, nombre: "Inglaterra · Premier League" },
+  { id: 140, nombre: "España · LaLiga" },
+  { id: 135, nombre: "Italia · Serie A" },
+  { id: 78, nombre: "Alemania · Bundesliga" },
+  { id: 61, nombre: "Francia · Ligue 1" },
   { id: 13, nombre: "Copa Libertadores" },
   { id: 11, nombre: "Copa Sudamericana" },
 ];
@@ -50,7 +60,7 @@ const seasonPorLiga = new Map();
 
 // Cache CORTO de la lista de partidos, por zona horaria y ventana de dias.
 // Nada que ver con el cache de analisis por fixture_id: aquel guarda el
-// pronostico de la IA durante horas, este solo evita repetir las 12 peticiones
+// pronostico de la IA durante horas, este solo evita repetir las 17 peticiones
 // del listado cuando el usuario va y viene (el "Volver" de la vista de
 // analisis desmonta el calendario y lo haria pedir todo otra vez).
 //
