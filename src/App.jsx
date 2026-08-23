@@ -1057,6 +1057,26 @@ export default function BetFutProV3() {
   // este desmontado (historial, analisis).
   const [ligasPorDia, setLigasPorDia] = useState([]);
   const [menuLigas, setMenuLigas] = useState(false);
+  // Menu de usuario del avatar. mousedown/touchstart y no click para el
+  // cierre por fuera: con click, el mismo clic que abre tambien cierra.
+  const [menuUsuario, setMenuUsuario] = useState(false);
+  const menuUsuarioRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuUsuario) return;
+    const fuera = (e) => {
+      if (!menuUsuarioRef.current?.contains(e.target)) setMenuUsuario(false);
+    };
+    const tecla = (e) => { if (e.key === "Escape") setMenuUsuario(false); };
+    document.addEventListener("mousedown", fuera);
+    document.addEventListener("touchstart", fuera);
+    document.addEventListener("keydown", tecla);
+    return () => {
+      document.removeEventListener("mousedown", fuera);
+      document.removeEventListener("touchstart", fuera);
+      document.removeEventListener("keydown", tecla);
+    };
+  }, [menuUsuario]);
 
   const guardarEnHistorial = (mercado) => {
     if (!savedAnalysis) return;
@@ -1699,22 +1719,67 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
               {/* Auth button */}
               {supabase && (
                 user ? (
-                  <div style={{ position: "relative" }} onClick={() => logout()}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
-                      background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8,
-                      padding: "6px 10px" }}>
+                  <div style={{ position: "relative" }} ref={menuUsuarioRef}>
+                    <div
+                      role="button"
+                      aria-haspopup="menu"
+                      aria-expanded={menuUsuario}
+                      onClick={() => setMenuUsuario((v) => !v)}
+                      style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer",
+                        background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8,
+                        padding: "6px 10px" }}
+                    >
                       {user.user_metadata?.avatar_url
                         ? <img src={user.user_metadata.avatar_url} style={{ width: 22, height: 22, borderRadius: "50%" }} alt=""/>
                         : <div style={{ width: 22, height: 22, borderRadius: "50%", background: C.accent, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 700 }}>
                             {(user.email || "U")[0].toUpperCase()}
                           </div>}
-                      <div>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: PLAN_LIMITS[profile?.plan || "free"]?.color || C.accent }}>
-                          {PLAN_LIMITS[profile?.plan || "free"]?.label || "Free"}
-                        </div>
-                        <div style={{ fontSize: 9, color: C.dim }}>Salir</div>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: PLAN_LIMITS[profile?.plan || "free"]?.color || C.accent }}>
+                        {PLAN_LIMITS[profile?.plan || "free"]?.label || "Free"}
                       </div>
+                      <span style={{ fontSize: 9, color: C.dim }}>▾</span>
                     </div>
+
+                    {menuUsuario && (
+                      <div
+                        role="menu"
+                        style={{
+                          // zIndex por encima de todo lo existente (el maximo
+                          // actual es el menu de ligas, 50). Ningun ancestro
+                          // del header recorta: el menu de ligas, absoluto en
+                          // esta misma fila, ya cuelga sin recortes.
+                          position: "absolute", right: 0, top: "calc(100% + 6px)",
+                          zIndex: 1000, minWidth: 210, maxWidth: 260,
+                          background: C.card, border: `1px solid ${C.border}`,
+                          borderRadius: 10, padding: 6,
+                          boxShadow: "0 12px 32px rgba(0,0,0,0.45)",
+                        }}
+                      >
+                        <div style={{ padding: "8px 12px", minHeight: 44, boxSizing: "border-box" }}>
+                          <div style={{ fontSize: 12, color: C.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {user.email}
+                          </div>
+                          <div style={{ fontSize: 11, fontWeight: 700, marginTop: 3, color: PLAN_LIMITS[profile?.plan || "free"]?.color || C.accent }}>
+                            Plan {PLAN_LIMITS[profile?.plan || "free"]?.label || "Free"}
+                          </div>
+                        </div>
+                        <div style={{ height: 1, background: C.border, margin: "4px 0" }} />
+                        {/* FUTURO: "Mi suscripción" va aquí */}
+                        <button
+                          role="menuitem"
+                          onClick={() => { setMenuUsuario(false); logout(); }}
+                          style={{
+                            display: "flex", alignItems: "center", width: "100%",
+                            minHeight: 44, padding: "0 12px", boxSizing: "border-box",
+                            background: "transparent", border: "none", cursor: "pointer",
+                            color: C.red, fontSize: 13, fontWeight: 600, textAlign: "left",
+                            borderRadius: 8,
+                          }}
+                        >
+                          Cerrar sesión
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <button onClick={loginGoogle} style={{
