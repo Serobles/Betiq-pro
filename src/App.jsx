@@ -1563,6 +1563,20 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
     if (!ultimoFixture.current) window.scrollTo({ top: 0 });
   };
 
+  // Boton de inicio (logo y pestana Analizar): siempre el calendario en HOY
+  // y arriba. Conservar el dia y la tarjeta es cosa del "Volver" de la vista
+  // de analisis (volverAlCalendario), no de este atajo.
+  const irAlInicio = () => {
+    setMainTab("analizar");
+    setDiaSel(2);
+    setObjetivoScroll(null);
+    // El scroll se difiere a despues del re-render: lanzado en el propio click
+    // muere cuando el cambio de vista altera la altura de la pagina (anclaje
+    // del navegador) y la pantalla queda a media altura en vez de arriba.
+    // Instantaneo, como el resto de saltos de vista (volverAlCalendario).
+    setTimeout(() => window.scrollTo(0, 0), 0);
+  };
+
   const top3 = data?.mercados_analizados?.slice().sort((a, b) => a.ranking - b.ranking).slice(0, 3) || [];
   const otros = data?.mercados_analizados?.filter(m => !m.recomendado) || [];
 
@@ -1571,10 +1585,18 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
 
       {/* HEADER */}
       <div style={{ background: `linear-gradient(135deg, #0d1b2a 0%, #162436 60%, #1c2e44 100%)`, borderBottom: `1px solid ${C.border}`, padding: "18px 24px 14px" }}>
+        <style>{`
+          .hdr-menu { display: none; }
+          @media (max-width: 767px) {
+            .hdr-analizar { display: none; }
+            .hdr-menu { display: inline-flex; align-items: center; justify-content: center; }
+            .hdr-logo { width: 141px; height: 44px; }
+          }
+        `}</style>
         <div style={{ maxWidth: 920, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <svg width="420" height="131" viewBox="0 0 1600 500" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }} aria-label="BetFut">
+            <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0 }}>
+              <svg className="hdr-logo" onClick={irAlInicio} width="420" height="131" viewBox="0 0 1600 500" preserveAspectRatio="xMinYMid meet" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 1, minWidth: 0, cursor: "pointer" }} aria-label="BetFut" role="button">
                 <defs>
                   <clipPath id="bfHeaderClip"><circle cx="100" cy="100" r="84"/></clipPath>
                   <linearGradient id="bfHeaderGrad" x1="0" y1="0" x2="1" y2="0">
@@ -1626,18 +1648,12 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                 <text x="488" y="386" fontFamily="'Bitcount Prop Single', 'Courier New', monospace" fontSize="26" fill="#7E96A8">ANALISIS Y PRONOSTICOS DE FUTBOL</text>
               </svg>
             </div>
-            <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 6, alignItems: "center", flexShrink: 0 }}>
               {[["analizar", "⚡ Analizar"], ["historial", "📋 Historial"]].map(([k, l]) => (
-                <button key={k} onClick={() => {
-                  setMainTab(k);
-                  // Boton de inicio: siempre arriba y siempre en HOY. Conservar
-                  // el dia y la tarjeta es cosa del "Volver" de la vista de
-                  // analisis, no de esta pestana.
-                  if (k === "analizar") {
-                    setDiaSel(2);
-                    setObjetivoScroll(null);
-                    window.scrollTo({ top: 0, behavior: "smooth" });
-                  }
+                <button key={k} className={k === "analizar" ? "hdr-analizar" : undefined} onClick={() => {
+                  // Analizar comparte el atajo de inicio con el logo (HOY y
+                  // arriba); en movil la pestana se oculta y queda el logo.
+                  if (k === "analizar") irAlInicio(); else setMainTab(k);
                 }} style={{
                   background: mainTab === k ? "linear-gradient(135deg,#16a34a,#22c55e)" : "transparent",
                   color: mainTab === k ? "#fff" : C.muted,
@@ -1676,6 +1692,11 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                   </button>
                 )
               )}
+              {/* ☰ solo movil: abrira el menu de ligas (proximo paso) */}
+              <button className="hdr-menu" aria-label="Menú" onClick={() => console.log("menu de ligas: pendiente")} style={{
+                background: "transparent", color: C.muted, border: `1px solid ${C.border}`,
+                borderRadius: 8, padding: "6px 10px", fontSize: 16, lineHeight: 1, cursor: "pointer"
+              }}>☰</button>
             </div>
           </div>
         </div>
