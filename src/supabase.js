@@ -33,27 +33,58 @@ export const loginFacebook = () =>
 
 export const logout = () => supabase?.auth.signOut()
 
-// ── Cache helpers ─────────────────────────────────────────
-export const getCachedAnalysis = async (local, visitante) => {
-  if (!supabase) return null
-  const key = `${local.toLowerCase().trim()}|${visitante.toLowerCase().trim()}`
+// ── Cache helpers (por fixture_id) ────────────────────────
+// La clave es el fixture_id que ya viaja desde el calendario. Los registros
+// viejos por nombres ("local|visitante") se ignoran y expiran solos.
+export const getCachedAnalysis = async (fixtureId) => {
+  if (!supabase || !fixtureId) return null
   const { data } = await supabase
     .from('analysis_cache')
-    .select('analysis, expires_at')
-    .eq('match_key', key)
+    .select('analysis')
+    .eq('fixture_id', fixtureId)
     .gt('expires_at', new Date().toISOString())
-    .single()
+    .maybeSingle()
   return data?.analysis || null
 }
 
-export const saveAnalysisCache = async (local, visitante, analysis) => {
-  if (!supabase) return
-  const key = `${local.toLowerCase().trim()}|${visitante.toLowerCase().trim()}`
+// expires_at = hora del partido: el filtro gt(expires_at) de la lectura
+// garantiza en el servidor que el pronostico de un partido ya empezado no se
+// sirva jamas como vigente. match_key se rellena con "fixture:<id>" solo para
+// satisfacer la clave vieja de la tabla; no colisiona con las claves por
+// nombres.
+export const saveAnalysisCache = async (fixtureId, kickoffUnix, local, visitante, analysis) => {
+  if (!supabase || !fixtureId) return
   await supabase.from('analysis_cache').upsert({
-    match_key:  key,
+    match_key:  `fixture:${fixtureId}`,
+    fixture_id: fixtureId,
     local, visitante, analysis,
-    expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-  }, { onConflict: 'match_key' })
+    expires_at: new Date(kickoffUnix ? kickoffUnix * 1000 : Date.now() + 24 * 60 * 60 * 1000).toISOString()
+  }, { onConflict: 'fixture_id' })
+}
+
+// ── Cuota por fixture visto (opcion B) ────────────────────
+// Abrir un analisis descuenta cuota solo la PRIMERA vez que este usuario ve
+// este fixture; las reaperturas son gratis. El registro vive en la tabla
+// analisis_vistos (PK user_id + fixture_id).
+export const yaVioFixture = async (userId, fixtureId) => {
+  if (!supabase || !userId || !fixtureId) return false
+  const { data } = await supabase
+    .from('analisis_vistos')
+    .select('fixture_id')
+    .eq('user_id', userId)
+    .eq('fixture_id', fixtureId)
+    .maybeSingle()
+  return Boolean(data)
+}
+
+export const marcarFixtureVisto = async (userId, fixtureId) => {
+  if (!supabase || !userId || !fixtureId) return
+  // ignoreDuplicates: un INSERT .. ON CONFLICT DO NOTHING no necesita
+  // politica de UPDATE en la tabla.
+  await supabase.from('analisis_vistos').upsert(
+    { user_id: userId, fixture_id: fixtureId },
+    { onConflict: 'user_id,fixture_id', ignoreDuplicates: true }
+  )
 }
 
 // ── Profile helpers ───────────────────────────────────────

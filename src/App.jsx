@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, saveAnalysisCache, checkAndIncrementAnalysis, loadHistorialSupabase, saveHistorialSupabase, PLAN_LIMITS } from './supabase.js';
+import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, saveAnalysisCache, checkAndIncrementAnalysis, yaVioFixture, marcarFixtureVisto, loadHistorialSupabase, saveHistorialSupabase, PLAN_LIMITS } from './supabase.js';
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -1104,7 +1104,7 @@ export default function BetFutProV3() {
     // Unica entrada: las tarjetas del calendario, que pasan el partido ya
     // identificado y su fixtureId (evita la resolucion de nombres en el
     // backend). El buscador manual del pie se retiro con la Ola 1 completa.
-    const { local, visitante, fixtureId } = opciones;
+    const { local, visitante, fixtureId, timestamp } = opciones;
 
     if (!local || !visitante) return;
     if (analisisEnCurso.current) return;
@@ -1113,17 +1113,30 @@ export default function BetFutProV3() {
     setAnalizandoId(fixtureId);
     ultimoFixture.current = fixtureId;
 
-    // ── Verificar límite de plan ──────────────────────────
+    // Partido ya empezado (ventana rara: el calendario servido hace <3 min
+    // aun pintaba el boton). Su pronostico cacheado ya no es vigente: ni se
+    // sirve ni se guarda; se genera en vivo como siempre.
+    const empezado = Boolean(timestamp) && timestamp * 1000 <= Date.now();
+
+    // ── Verificar límite de plan (opcion B: cuota por fixture NUEVO) ──
+    // Abrir un analisis descuenta solo la primera vez que este usuario ve
+    // este fixture; reabrirlo es gratis.
     if (supabase && user) {
-      const check = await checkAndIncrementAnalysis(user.id);
-      if (!check.allowed) {
-        setError(`Alcanzaste tu límite de ${check.limite} análisis/día (plan ${check.plan?.toUpperCase()}). Actualiza tu plan para más.`);
-        setAnalizandoId(null);
-        analisisEnCurso.current = false;
-        // No se cambia de vista: el aviso se pinta sobre el calendario, y se
-        // sube al tope para que no quede fuera de pantalla.
-        window.scrollTo({ top: 0 });
-        return;
+      const repetido = await yaVioFixture(user.id, fixtureId);
+      if (!repetido) {
+        const check = await checkAndIncrementAnalysis(user.id);
+        if (!check.allowed) {
+          setError(`Alcanzaste tu límite de ${check.limite} análisis/día (plan ${check.plan?.toUpperCase()}). Actualiza tu plan para más.`);
+          setAnalizandoId(null);
+          analisisEnCurso.current = false;
+          // No se cambia de vista: el aviso se pinta sobre el calendario, y se
+          // sube al tope para que no quede fuera de pantalla.
+          window.scrollTo({ top: 0 });
+          return;
+        }
+        // Se marca al cobrar, no al terminar: si la generacion falla, el
+        // reintento del mismo fixture ya no descuenta otra vez.
+        await marcarFixtureVisto(user.id, fixtureId);
       }
     }
 
@@ -1133,10 +1146,10 @@ export default function BetFutProV3() {
     setMainTab("analisis");
     window.scrollTo({ top: 0 });
 
-    // ── Verificar caché ───────────────────────────────────
+    // ── Verificar caché (por fixture_id) ──────────────────
     setLoading(true); setError(""); setAviso(null); setData(null);
     setProgress("⚡ Verificando caché de análisis...");
-    const cached = await getCachedAnalysis(local, visitante);
+    const cached = empezado ? null : await getCachedAnalysis(fixtureId);
     if (cached) {
       setData(cached);
       setSavedAnalysis({
@@ -1492,8 +1505,8 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
       setData(parsed);
       setTab("mercados");
 
-      // ── Guardar en caché Supabase ─────────────────────
-      saveAnalysisCache(local, visitante, parsed);
+      // ── Guardar en caché Supabase (por fixture, caduca al kickoff) ──
+      if (!empezado) saveAnalysisCache(fixtureId, timestamp, local, visitante, parsed);
 
       // ── Guardar snapshot del análisis para permitir guardar desde cada mercado ──
       setSavedAnalysis({
@@ -1783,7 +1796,7 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
             <Calendario
               onAnalizar={(p, ligas) => {
                 setLigasDelDia(ligas || []);
-                analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id });
+                analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id, timestamp: p.timestamp });
               }}
               onLigasPorDia={setLigasPorDia}
               analizandoId={analizandoId}
