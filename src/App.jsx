@@ -1015,7 +1015,6 @@ export default function BetFutProV3() {
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     setProfile(data);
   };
-  const [form, setForm] = useState({ local: "", visitante: "" });
   const [bank, setBank] = useState(1000);
   const [savedAnalysis, setSavedAnalysis] = useState(null);
   const [guardadoId, setGuardadoId] = useState(null);
@@ -1043,14 +1042,15 @@ export default function BetFutProV3() {
   // la vista de analisis desmonta el componente y un estado interno volveria
   // siempre a "hoy". El padre no se desmonta nunca.
   const [diaSel, setDiaSel] = useState(2);
-  // De que tarjeta nacio el analisis en curso (null si vino del buscador) y
+  // De que tarjeta nacio el analisis en curso (toda entrada viene de una) y
   // objetivo pendiente de scroll al volver.
   const ultimoFixture = useRef(null);
   // Id del ELEMENTO al que volver en el calendario: "partido-123" (Volver) o
   // "liga-brasil-serie-a" (panel lateral). Un solo mecanismo para ambos.
   const [objetivoScroll, setObjetivoScroll] = useState(null);
-  // Ligas con partidos en el dia del analisis en curso, para el panel.
-  // Vacio cuando el analisis nace del buscador (no hay dia de contexto).
+  // Ligas con partidos en el dia del analisis en curso, para el panel y el
+  // menu ☰. La rellena la tarjeta que lanza el analisis; el guardado de
+  // length > 0 al pintar queda como defensa.
   const [ligasDelDia, setLigasDelDia] = useState([]);
   // Nombres de liga por dia (indice = pestana de dia), subidos por Calendario
   // al cargar. Viven aqui para que el menu ☰ los tenga aunque el calendario
@@ -1100,13 +1100,11 @@ export default function BetFutProV3() {
     setGuardadoId(id);
   };
 
-  const analyze = async (opciones = {}) => {
-    // El buscador llama sin argumentos y tira del formulario, igual que
-    // siempre. El calendario pasa el partido ya identificado y su fixtureId,
-    // que evita toda la resolucion de nombres en el backend.
-    const local = opciones.local ?? form.local;
-    const visitante = opciones.visitante ?? form.visitante;
-    const fixtureId = opciones.fixtureId ?? null;
+  const analyze = async (opciones) => {
+    // Unica entrada: las tarjetas del calendario, que pasan el partido ya
+    // identificado y su fixtureId (evita la resolucion de nombres en el
+    // backend). El buscador manual del pie se retiro con la Ola 1 completa.
+    const { local, visitante, fixtureId } = opciones;
 
     if (!local || !visitante) return;
     if (analisisEnCurso.current) return;
@@ -1114,7 +1112,6 @@ export default function BetFutProV3() {
 
     setAnalizandoId(fixtureId);
     ultimoFixture.current = fixtureId;
-    if (!fixtureId) setLigasDelDia([]);
 
     // ── Verificar límite de plan ──────────────────────────
     if (supabase && user) {
@@ -1132,8 +1129,7 @@ export default function BetFutProV3() {
 
     // El analisis tiene vista propia y se entra en ella al arrancar, no al
     // terminar: asi el progreso se ve desde el primer segundo y un fallo
-    // aparece donde el usuario esta mirando. Vale para las dos entradas, el
-    // calendario y el buscador del pie.
+    // aparece donde el usuario esta mirando.
     setMainTab("analisis");
     window.scrollTo({ top: 0 });
 
@@ -1520,15 +1516,8 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
 
   const copy = (text) => { navigator.clipboard?.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
-  const inputS = {
-    width: "100%", background: C.card2, border: `1px solid ${C.border}`, borderRadius: 8,
-    padding: "10px 14px", color: C.text, fontSize: 14, outline: "none", boxSizing: "border-box", fontFamily: "inherit"
-  };
-
-  // Progreso, error y aviso clasificado. Viven aqui y no dentro de la tarjeta
-  // del buscador porque esa tarjeta esta al pie de la pagina: un fallo lanzado
-  // desde el calendario quedaba enterrado abajo, fuera de vista. Se pinta en la
-  // vista activa, encima del contenido, que es donde el usuario esta mirando.
+  // Progreso, error y aviso clasificado. Se pinta en la vista activa, encima
+  // del contenido, que es donde el usuario esta mirando.
   const bloqueEstado = (
     <>
       {loading && progress && (
@@ -1582,12 +1571,12 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
   };
 
   const volverAlCalendario = () => {
-    // Si el analisis nacio de una tarjeta del calendario se vuelve a ella
-    // (el scroll lo hace Calendario cuando los dias estan pintados); si nacio
-    // del buscador del pie, arriba como siempre.
-    setObjetivoScroll(ultimoFixture.current ? `partido-${ultimoFixture.current}` : null);
+    // Se vuelve a la tarjeta que lanzo el analisis (el scroll lo hace
+    // Calendario cuando los dias estan pintados; si la tarjeta ya no existe,
+    // el objetivo se consume sin desplazar). Todo analisis nace de una
+    // tarjeta desde que el buscador del pie se retiro.
+    setObjetivoScroll(`partido-${ultimoFixture.current}`);
     setMainTab("analizar");
-    if (!ultimoFixture.current) window.scrollTo({ top: 0 });
   };
 
   // Boton de inicio (logo y pestana Analizar): siempre el calendario en HOY
@@ -2176,12 +2165,6 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
                   </div>
                 )}
 
-                <div style={{ marginTop: 20, textAlign: "center" }}>
-                  <button onClick={() => { setData(null); setForm({ local: "", visitante: "" }); }} style={{
-                    background: "transparent", border: `1px solid ${C.border}`, color: C.muted,
-                    borderRadius: 8, padding: "9px 20px", cursor: "pointer", fontSize: 13
-                  }}>🔄 Nuevo análisis</button>
-                </div>
               </>
             )}
               </div>
@@ -2214,32 +2197,6 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
           </div>
         )}
 
-        {/* Buscador manual por nombres. Vive al pie: el calendario es la via
-            principal y esto queda como alternativa para partidos que no
-            aparecen en las ligas listadas. Su logica no cambia. */}
-        {mainTab === "analizar" && (
-          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
-            <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 18, color: C.accent }}>🔍 Partido a analizar</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }}>
-              <div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Equipo Local *</div>
-                <input style={inputS} value={form.local} onChange={e => setForm(f => ({ ...f, local: e.target.value }))} placeholder="Ej: Real Madrid" />
-              </div>
-              <div>
-                <div style={{ fontSize: 11, color: C.muted, marginBottom: 6, fontWeight: 600 }}>Equipo Visitante *</div>
-                <input style={inputS} value={form.visitante} onChange={e => setForm(f => ({ ...f, visitante: e.target.value }))} placeholder="Ej: Atlético Madrid" />
-              </div>
-            </div>
-
-            <button onClick={() => analyze()} disabled={loading || !form.local || !form.visitante} style={{
-              width: "100%", background: loading ? C.dim : "linear-gradient(135deg,#16a34a,#22c55e)", color: "#fff", border: "none", borderRadius: 10,
-              padding: "14px", fontWeight: 800, fontSize: 15, cursor: loading ? "not-allowed" : "pointer",
-              boxShadow: loading ? "none" : "0 4px 20px rgba(34,197,94,0.45)", letterSpacing: ".03em"
-            }}>
-              {loading ? "Analizando..." : "⚡ ANALIZAR 8+ MERCADOS CON IA"}
-            </button>
-          </div>
-        )}
       </div>
     </div>
   );
