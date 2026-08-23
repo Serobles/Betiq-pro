@@ -38,6 +38,11 @@ const LIGAS = [
 const TANDA = 4;
 const PAUSA_MS = 250;
 
+// Pausa previa al reintento de las ligas que fallaron. Mas larga que la de
+// entre tandas: si el tropiezo fue el limite por minuto, reintentar de
+// inmediato volveria a fallar seguro.
+const PAUSA_REINTENTO_MS = 1500;
+
 // Cache por instancia: ni las zonas horarias ni la temporada en curso cambian
 // de un minuto a otro.
 let zonasValidas = null;
@@ -179,20 +184,40 @@ export default async function handler(req, res) {
     // Tandas pequenas + allSettled: escalonar evita que la API corte, y si aun
     // asi cae una liga se pintan las demas en vez de quedarse el calendario en
     // blanco. Antes un solo fallo tumbaba las once restantes.
+    //
+    // `porLiga` va indexado como LIGAS (el payload lo lee por posicion), asi
+    // que una pasada puede rellenar solo los huecos que le toquen y el orden
+    // en pantalla no se altera.
+    const porLiga = LIGAS.map(() => []);
+
+    // Pide en tandas las ligas de esos indices y devuelve las que fallaron.
+    const pasadaEnTandas = async (indices) => {
+      const fallidas = [];
+      for (let i = 0; i < indices.length; i += TANDA) {
+        const tanda = indices.slice(i, i + TANDA);
+        const resultados = await Promise.allSettled(
+          tanda.map((idx) => cargarLiga(LIGAS[idx]))
+        );
+        resultados.forEach((r, j) => {
+          if (r.status === "fulfilled") porLiga[tanda[j]] = r.value;
+          else fallidas.push({ idx: tanda[j], motivo: r.reason?.message || "no respondio" });
+        });
+        if (i + TANDA < indices.length) await dormir(PAUSA_MS);
+      }
+      return fallidas;
+    };
+
     const avisos = [];
-    const porLiga = [];
-    for (let i = 0; i < LIGAS.length; i += TANDA) {
-      const tanda = LIGAS.slice(i, i + TANDA);
-      const resultados = await Promise.allSettled(tanda.map(cargarLiga));
-      resultados.forEach((r, j) => {
-        if (r.status === "fulfilled") {
-          porLiga.push(r.value);
-        } else {
-          porLiga.push([]);
-          avisos.push(`${tanda[j].nombre}: ${r.reason?.message || "no respondio"}`);
-        }
-      });
-      if (i + TANDA < LIGAS.length) await dormir(PAUSA_MS);
+    let fallidas = await pasadaEnTandas(LIGAS.map((_, i) => i));
+    if (fallidas.length) {
+      // Reintento silencioso, UNA sola vez y solo de las caidas: un tropiezo
+      // puntual se recupera sin que el usuario llegue a ver aviso. Va con su
+      // pausa previa y en las mismas tandas, para no meter rafagas nuevas.
+      await dormir(PAUSA_REINTENTO_MS);
+      fallidas = await pasadaEnTandas(fallidas.map((f) => f.idx));
+      fallidas.forEach(({ idx, motivo }) =>
+        avisos.push(`${LIGAS[idx].nombre}: ${motivo}`)
+      );
     }
 
     // Jerarquia dia -> liga -> partidos. Las ligas salen en el orden en que

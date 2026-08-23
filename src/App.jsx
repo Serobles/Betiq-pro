@@ -557,12 +557,16 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
       )}
 
       {!cargando && !error && ligasCaidas.length > 0 && (
+        // Discreto a proposito: cuando esto se pinta, la liga ya fallo dos
+        // veces (carga + reintento del servidor). Es un dato util, no una
+        // alarma, y el resto del calendario esta bien.
         <div style={{
           marginBottom: 14, fontSize: 12, borderRadius: 8, padding: "9px 12px",
-          color: C.amber, background: C.amberDim, border: `1px solid ${C.amber}55`,
+          color: C.muted, background: C.card2, border: `1px solid ${C.border}`,
         }}>
-          ⚠️ No se pudieron cargar {ligasCaidas.length === 1 ? "esta liga" : "estas ligas"}, así que sus partidos faltan de la lista:{" "}
-          {ligasCaidas.map((a) => a.split(":")[0]).join(", ")}
+          {ligasCaidas.length === 1
+            ? `${ligasCaidas[0].split(":")[0]} no está disponible en este momento`
+            : `Estas ligas no están disponibles en este momento: ${ligasCaidas.map((a) => a.split(":")[0]).join(", ")}`}
         </div>
       )}
 
