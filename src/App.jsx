@@ -1172,7 +1172,11 @@ export default function BetFutProV3() {
     window.scrollTo({ top: 0 });
 
     // ── Verificar caché (por fixture_id) ──────────────────
-    setLoading(true); setError(""); setAviso(null); setData(null);
+    // La pestana interna arranca siempre en Mercados. Aqui y no al final de
+    // la generacion: este es el unico punto por el que pasan TODOS los
+    // caminos (cache hit incluido, que antes arrastraba la pestana del
+    // analisis anterior).
+    setLoading(true); setError(""); setAviso(null); setData(null); setTab("mercados");
     setProgress("⚡ Verificando caché de análisis...");
     const cached = empezado ? null : await getCachedAnalysis(fixtureId);
     if (cached) {
@@ -1528,7 +1532,6 @@ FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto ext
       parsed.post_whatsapp = `🏆 *BetFut*\n\n⚽ *${parsed.partido?.local} vs ${parsed.partido?.visitante}*\n📅 ${parsed.partido?.fecha || "Próximos días"} | 🏆 ${parsed.partido?.competicion || "Fútbol"}\n\n─────────────────────\n🥇 *MEJOR APUESTA*\n─────────────────────\n🎯 *${nombre1}*\n📝 ${desc1}\n💰 Cuota: *${cuota1}* (${fuente1})\n✅ Confianza: *${conf1}%* | EV: *+${ev1}%*\n\n─────────────────────\n🥈 *ALTERNATIVAS*\n─────────────────────\n🎯 ${t2.nombre || "—"} — Cuota *${(t2.cuota || 0).toFixed(2)}*\n🎯 ${t3.nombre || "—"} — Cuota *${(t3.cuota || 0).toFixed(2)}*\n\n─────────────────────\n🔑 *PUNTOS CLAVE*\n─────────────────────\n${(parsed.puntos_clave || []).map((p, i) => `${i + 1}️⃣ ${p}`).join("\n")}\n\n🏥 *Bajas:*\n▪️ ${parsed.partido?.local}: ${bL}\n▪️ ${parsed.partido?.visitante}: ${bV}\n\n📊 Local ${pr.victoria_local}% | Empate ${pr.empate}% | Visit. ${pr.victoria_visitante}%\n\n_⚠️ Solo sugerencia. Juega responsable._`;
 
       setData(parsed);
-      setTab("mercados");
 
       // ── Guardar en caché Supabase (por fixture, caduca al kickoff) ──
       if (!empezado) saveAnalysisCache(fixtureId, timestamp, local, visitante, parsed);
