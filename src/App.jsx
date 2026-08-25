@@ -980,6 +980,16 @@ function Historial() {
   );
 }
 // ─── APP PRINCIPAL ────────────────────────────────────────────────────────────
+// Token FRESCO de Supabase en cada peticion a los endpoints protegidos:
+// getSession() renueva el access_token si caduco — adjuntar uno guardado al
+// montar acabaria enviando tokens vencidos a mitad de sesion.
+const cabecerasAuth = async () => {
+  if (!supabase) return {};
+  const { data } = await supabase.auth.getSession();
+  const t = data?.session?.access_token;
+  return t ? { Authorization: `Bearer ${t}` } : {};
+};
+
 export default function BetFutProV3() {
   // Fijar color de fondo en body para evitar fondo blanco en overscroll móvil
   if (typeof document !== "undefined") {
@@ -1127,6 +1137,15 @@ export default function BetFutProV3() {
     const { local, visitante, fixtureId, timestamp } = opciones;
 
     if (!local || !visitante) return;
+
+    // Sin sesion no hay analisis: el servidor responde 401 de todos modos.
+    // Se corta aqui — sin navegar, sin cache — y se manda al login.
+    if (!user) {
+      setAviso({ nivel: "error", texto: "Inicia sesión para ver el análisis." });
+      loginGoogle();
+      return;
+    }
+
     if (analisisEnCurso.current) return;
     analisisEnCurso.current = true;
 
@@ -1238,7 +1257,7 @@ export default function BetFutProV3() {
         try {
           const proxyRes = await fetch("/api/analyze", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: { "Content-Type": "application/json", ...(await cabecerasAuth()) },
             body: JSON.stringify({ system, messages, withSearch, maxTokens: maxTok }),
             signal: controller.signal,
           });
@@ -1273,7 +1292,7 @@ export default function BetFutProV3() {
         // Intentar API-Football primero (Vercel) o web search (Claude artifact)
         const footballRes = await fetch("/api/football", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...(await cabecerasAuth()) },
           // Con fixtureId el backend sabe exactamente que partido es; sin el,
           // lo resuelve por nombres como hasta ahora.
           body: JSON.stringify(

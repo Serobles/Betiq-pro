@@ -1,9 +1,15 @@
+import { exigirSesion } from "./_auth.js";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   res.setHeader("Access-Control-Allow-Origin", "*");
+
+  // 401 ANTES de gastar cuota de API-Football.
+  const usuario = await exigirSesion(req, res);
+  if (!usuario) return;
 
   const { local, visitante, fixture_id } = req.body;
   const API_KEY = process.env.API_FOOTBALL_KEY;

@@ -1,3 +1,5 @@
+import { exigirSesion } from "./_auth.js";
+
 export default async function handler(req, res) {
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
@@ -5,7 +7,11 @@ export default async function handler(req, res) {
 
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  // 401 ANTES de tocar Anthropic: sin sesion valida no se gasta un token.
+  const usuario = await exigirSesion(req, res);
+  if (!usuario) return;
 
   const { system, messages, withSearch, maxTokens } = req.body;
 
@@ -20,7 +26,9 @@ export default async function handler(req, res) {
 
   const body = {
     model: "claude-sonnet-4-6",
-    max_tokens: maxTokens || 4000,
+    // Cap del SERVIDOR: lo que pida el cliente por encima del tope actual
+    // de la app se ignora — este endpoint paga la factura, no el navegador.
+    max_tokens: Math.min(Number(maxTokens) || 4000, 4000),
     system,
     messages,
   };
