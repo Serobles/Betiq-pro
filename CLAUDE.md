@@ -14,6 +14,8 @@
 
 **Endpoints protegidos:** api/analyze y api/football exigen el access_token de Supabase (Authorization: Bearer) y responden 401 ANTES de gastar; el guard compartido vive en api/_auth.js (el prefijo _ lo excluye del enrutado de Vercel). api/fixtures queda público a propósito: el calendario es la portada. maxTokens se capa en el servidor a 4000. El candidato de pagos es Kunfupay (no Stripe).
 
+**Trampa conocida — standings multi-grupo:** /standings devuelve VARIOS grupos en ligas con etapas (Colombia 2: Apertura+Clausura; Argentina 4: etapa x zona A/B; Uruguay 5: Tabla Anual, Promedios, Intermedio, Apertura, Clausura). Aplanar y tomar el primer hallazgo sirve la tabla del Apertura terminado como vigente. La regla correcta (api/football.js, seccion 7): elegir el grupo que case con la etapa que nombra el propio fixture en league.round ("Clausura - 8"), por equipo; con un solo grupo no hay ambiguedad; si ninguno casa, el campo `tabla` declara "sin etapa identificada" y las posiciones van vacias — nunca fingir certeza con grupos[0]. /teams/statistics cubre la temporada entera (etapas sumadas), etiquetado en `stats_periodo`.
+
 **Pendientes de seguridad:**
 - Fase 2 del proxy de analyze: dejar de aceptar system/messages arbitrarios del cliente; el prompt se armará en el servidor.
 - Cuota en servidor: cierra el bypass de un usuario logueado llamando a los endpoints con curl (token válido, cuota sin cobrar). Va junto con la fase de pagos (Kunfupay).

@@ -90,6 +90,7 @@ export const construirSearchData = (f) => {
 
 PARTIDO: ${f.fixture?.local?.nombre} vs ${f.fixture?.visitante?.nombre}
 LIGA: ${f.fixture?.liga} (${f.fixture?.pais}) | FECHA: ${f.fixture?.fecha}
+TABLA: ${f.tabla || "N/D"} | Stats de equipo: ${f.stats_periodo || "temporada completa"}
 
 FORMA Y ESTADISTICAS — ${f.fixture?.local?.nombre?.toUpperCase()} (LOCAL):
 ${formatStats(f.stats_local, f.posicion_local)}

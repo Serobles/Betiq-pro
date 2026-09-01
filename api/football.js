@@ -584,10 +584,53 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
     };
 
     // ── 7. Posición en tabla ──────────────────────────────────────────
-    const allStandings = standingsData?.response?.[0]?.league?.standings?.flat() || [];
+    // TRAMPA: standings devuelve VARIOS grupos en las ligas con etapas
+    // (Colombia 2: Apertura+Clausura; Argentina 4: Apertura/Clausura x
+    // Group A/B; Uruguay 5: Tabla Anual, Promedios, Intermedio, Apertura,
+    // Clausura). Aplanar y tomar el primer hallazgo servia la tabla del
+    // Apertura TERMINADO como vigente: Cucuta salia 19° "en descenso"
+    // cuando iba 10° en el Clausura. La etapa correcta la nombra el propio
+    // fixture en league.round ("Clausura - 8"): se elige el grupo que case
+    // con ella, POR EQUIPO — en Argentina un interzonal cruza Group A con
+    // Group B y cada equipo vive en su grupo.
+    const grupos = standingsData?.response?.[0]?.league?.standings || [];
+    const normalizarEtapa = (t) =>
+      (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    const roundActual = match.league?.round || "";
+    const etapaRound = normalizarEtapa(roundActual.split(" - ")[0]);
+    const fechaRound = (roundActual.split(" - ")[1] || "").trim();
 
-    const posLocal = allStandings.find((t) => t.team?.id === homeTeamId);
-    const posVisit = allStandings.find((t) => t.team?.id === awayTeamId);
+    // Con un solo grupo no hay ambiguedad; con varios, solo los que casan
+    // con la etapa del round.
+    const gruposEtapa =
+      grupos.length <= 1
+        ? grupos
+        : grupos.filter((g) => etapaRound && normalizarEtapa(g[0]?.group).includes(etapaRound));
+
+    const buscarEnGrupos = (teamId) => {
+      for (const g of gruposEtapa) {
+        const t = g.find((x) => x.team?.id === teamId);
+        if (t) return { ...t, grupo: g[0]?.group };
+      }
+      return null;
+    };
+
+    const posLocal = buscarEnGrupos(homeTeamId);
+    const posVisit = buscarEnGrupos(awayTeamId);
+
+    // Fallback NO silencioso: si ningun grupo casa con el round (playoffs,
+    // finales, nombres raros) no se finge certeza con grupos[0] — el campo
+    // `tabla` lo declara, las posiciones van vacias, y la IA no arma
+    // narrativas de descenso o clasificacion sobre una tabla dudosa.
+    const tabla = gruposEtapa.length
+      ? `${posLocal?.grupo || posVisit?.grupo || gruposEtapa[0][0]?.group}${fechaRound ? ` (fecha ${fechaRound})` : ""}`
+      : "sin etapa identificada: posiciones no aplican";
+
+    // /teams/statistics solo filtra por season: cubre la temporada ENTERA
+    // (en ligas con etapas, Apertura y Clausura sumados — verificado:
+    // played.total de Tolima = 30 = sus 30 FT reales de 2026). Etiqueta
+    // para la IA; el dato no se toca.
+    const statsPeriodo = `temporada ${season} completa (todas las etapas sumadas)`;
 
     return respuesta(200, {
       encontrado: true,
@@ -616,11 +659,16 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
       odds,
       stats_local: procesar_stats(sh),
       stats_visitante: procesar_stats(sv),
+      // Que tabla se esta usando (grupo + fecha del round) y que periodo
+      // cubren las stats de equipo: cada analisis lo cita en vez de dejar
+      // que la IA lo adivine.
+      tabla,
+      stats_periodo: statsPeriodo,
       posicion_local: posLocal
-        ? { pos: posLocal.rank, pts: posLocal.points, forma: posLocal.form }
+        ? { pos: posLocal.rank, pts: posLocal.points, forma: posLocal.form, grupo: posLocal.grupo }
         : null,
       posicion_visitante: posVisit
-        ? { pos: posVisit.rank, pts: posVisit.points, forma: posVisit.form }
+        ? { pos: posVisit.rank, pts: posVisit.points, forma: posVisit.form, grupo: posVisit.grupo }
         : null,
       // Bloques que la API rechazo. Si esto no esta vacio, los huecos
       // correspondientes son "no se pudo consultar", no "no hay nada".
