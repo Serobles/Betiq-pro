@@ -408,28 +408,13 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
   if (FINALIZADO.has(p.estado)) {
     derecha = <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>{marcador}</span>;
   } else if (EN_JUEGO.has(p.estado)) {
-    // En juego: marcador vivo + acceso a la copia PRE-partido (la generada
-    // antes del inicio; al abrir, si no existe, mensaje honesto sin cobro).
     derecha = (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-        <span style={{ fontSize: 14, fontWeight: 800, color: C.green, whiteSpace: "nowrap" }}>
-          {marcador}
-          <span style={{ fontSize: 11, color: C.accent, marginLeft: 6 }}>
-            {p.minuto != null ? `${p.minuto}'` : "en juego"}
-          </span>
+      <span style={{ fontSize: 14, fontWeight: 800, color: C.green, whiteSpace: "nowrap" }}>
+        {marcador}
+        <span style={{ fontSize: 11, color: C.accent, marginLeft: 6 }}>
+          {p.minuto != null ? `${p.minuto}'` : "en juego"}
         </span>
-        <button
-          onClick={() => onAnalizar?.(p)}
-          disabled={analizando}
-          style={{
-            fontSize: 11, fontWeight: 700, color: C.muted, background: C.card2,
-            border: `1px solid ${C.border}`, borderRadius: 7, padding: "4px 8px",
-            cursor: analizando ? "wait" : "pointer", whiteSpace: "nowrap",
-          }}
-        >
-          {analizando ? "Abriendo..." : "Análisis pre-partido"}
-        </button>
-      </div>
+      </span>
     );
   } else if (SIN_JUGARSE[p.estado]) {
     derecha = <span style={chipS}>{SIN_JUGARSE[p.estado]}</span>;
