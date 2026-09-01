@@ -1,0 +1,41 @@
+# ── El cocinero: pre-generacion de analisis (cron, paso 3) ────────────
+# Solo disparo MANUAL (workflow_dispatch) por ahora; el schedule llega en
+# el sub-paso 3c. Los secretos viven en Settings → Secrets and variables
+# → Actions — jamas en el repo:
+#   API_FOOTBALL_KEY, ANTHROPIC_API_KEY, SUPABASE_URL,
+#   SUPABASE_SERVICE_ROLE_KEY (JWT legacy service_role o sb_secret_...).
+name: cocinero
+
+on:
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Ensayo (sin Claude, sin escrituras)"
+        type: boolean
+        default: true
+      max:
+        description: "Tope de generaciones por corrida"
+        default: "60"
+
+jobs:
+  cocinar:
+    runs-on: ubuntu-latest
+    # Un barrido de sabado (~40 fixtures) son ~2 min de datos + las
+    # generaciones de Claude de 30-60s solapadas de a 2: holgado en 30.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Sin npm install: el script solo importa modulos del propio repo
+      # (api/_ligas, api/football, api/_analysis), todos sin dependencias.
+      - name: Cocinar
+        env:
+          API_FOOTBALL_KEY: ${{ secrets.API_FOOTBALL_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/cocinero.mjs ${{ inputs.dry_run && '--dry-run' || '' }} --max=${{ inputs.max }}
