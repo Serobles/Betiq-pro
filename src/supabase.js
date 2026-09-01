@@ -47,6 +47,20 @@ export const getCachedAnalysis = async (fixtureId) => {
   return data?.analysis || null
 }
 
+// Variante SIN filtro de vigencia: para partidos ya empezados se sirve la
+// copia pre-partido aunque expires_at (= kickoff) haya pasado. Devuelve
+// tambien created_at/expires_at para rotular cuanto antes del inicio se
+// genero. La lectura vigente de arriba queda intacta.
+export const getCachedAnalysisCaducado = async (fixtureId) => {
+  if (!supabase || !fixtureId) return null
+  const { data } = await supabase
+    .from('analysis_cache')
+    .select('analysis, created_at, expires_at')
+    .eq('fixture_id', fixtureId)
+    .maybeSingle()
+  return data || null
+}
+
 // expires_at = hora del partido: el filtro gt(expires_at) de la lectura
 // garantiza en el servidor que el pronostico de un partido ya empezado no se
 // sirva jamas como vigente. match_key se rellena con "fixture:<id>" solo para

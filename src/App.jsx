@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, saveAnalysisCache, checkAndIncrementAnalysis, yaVioFixture, marcarFixtureVisto, loadHistorialSupabase, saveHistorialSupabase, PLAN_LIMITS } from './supabase.js';
+import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, getCachedAnalysisCaducado, saveAnalysisCache, checkAndIncrementAnalysis, yaVioFixture, marcarFixtureVisto, loadHistorialSupabase, saveHistorialSupabase, PLAN_LIMITS } from './supabase.js';
 // Logica pura del analisis (prompt, searchData, parseo, normalizacion,
 // posts): compartida con el cron via api/_analysis.js para que ambos
 // produzcan EXACTAMENTE el mismo JSON cacheado.
@@ -408,13 +408,28 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
   if (FINALIZADO.has(p.estado)) {
     derecha = <span style={{ fontSize: 14, fontWeight: 800, color: C.text }}>{marcador}</span>;
   } else if (EN_JUEGO.has(p.estado)) {
+    // En juego: marcador vivo + acceso a la copia PRE-partido (la generada
+    // antes del inicio; al abrir, si no existe, mensaje honesto sin cobro).
     derecha = (
-      <span style={{ fontSize: 14, fontWeight: 800, color: C.green, whiteSpace: "nowrap" }}>
-        {marcador}
-        <span style={{ fontSize: 11, color: C.accent, marginLeft: 6 }}>
-          {p.minuto != null ? `${p.minuto}'` : "en juego"}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: C.green, whiteSpace: "nowrap" }}>
+          {marcador}
+          <span style={{ fontSize: 11, color: C.accent, marginLeft: 6 }}>
+            {p.minuto != null ? `${p.minuto}'` : "en juego"}
+          </span>
         </span>
-      </span>
+        <button
+          onClick={() => onAnalizar?.(p)}
+          disabled={analizando}
+          style={{
+            fontSize: 11, fontWeight: 700, color: C.muted, background: C.card2,
+            border: `1px solid ${C.border}`, borderRadius: 7, padding: "4px 8px",
+            cursor: analizando ? "wait" : "pointer", whiteSpace: "nowrap",
+          }}
+        >
+          {analizando ? "Abriendo..." : "Análisis pre-partido"}
+        </button>
+      </div>
     );
   } else if (SIN_JUGARSE[p.estado]) {
     derecha = <span style={chipS}>{SIN_JUGARSE[p.estado]}</span>;
@@ -1055,6 +1070,9 @@ export default function BetFutProV3() {
   // menu ☰. La rellena la tarjeta que lanza el analisis; el guardado de
   // length > 0 al pintar queda como defensa.
   const [ligasDelDia, setLigasDelDia] = useState([]);
+  // Rotulo sobre el analisis mostrado: hoy, el aviso de "pre-partido"
+  // cuando se sirve la copia caducada de un partido ya empezado.
+  const [rotuloAnalisis, setRotuloAnalisis] = useState(null);
   // Nombres de liga por dia (indice = pestana de dia), subidos por Calendario
   // al cargar. Viven aqui para que el menu ☰ los tenga aunque el calendario
   // este desmontado (historial, analisis).
@@ -1145,10 +1163,24 @@ export default function BetFutProV3() {
     setAnalizandoId(fixtureId);
     ultimoFixture.current = fixtureId;
 
-    // Partido ya empezado (ventana rara: el calendario servido hace <3 min
-    // aun pintaba el boton). Su pronostico cacheado ya no es vigente: ni se
-    // sirve ni se guarda; se genera en vivo como siempre.
+    // Partido ya empezado: NO se genera en vivo. Si existe la copia
+    // pre-partido (aunque caducara al kickoff) se sirve rotulada, pasando
+    // por el flujo NORMAL de cuota (se cobra por analisis entregado); si no
+    // hay copia, mensaje honesto y CERO cobro — por eso solo el camino sin
+    // copia corta antes del bloque de cuota.
     const empezado = Boolean(timestamp) && timestamp * 1000 <= Date.now();
+
+    let copiaPrePartido = null;
+    if (empezado) {
+      copiaPrePartido = await getCachedAnalysisCaducado(fixtureId);
+      if (!copiaPrePartido?.analysis) {
+        setAviso({ nivel: "info", texto: "El partido ya empezó — no hay análisis pre-partido disponible." });
+        setAnalizandoId(null);
+        analisisEnCurso.current = false;
+        window.scrollTo({ top: 0 });
+        return;
+      }
+    }
 
     // ── Verificar límite de plan (opcion B: cuota por fixture NUEVO) ──
     // Abrir un analisis descuenta solo la primera vez que este usuario ve
@@ -1188,9 +1220,37 @@ export default function BetFutProV3() {
     // la generacion: este es el unico punto por el que pasan TODOS los
     // caminos (cache hit incluido, que antes arrastraba la pestana del
     // analisis anterior).
-    setLoading(true); setError(""); setAviso(null); setData(null); setTab("mercados");
+    setLoading(true); setError(""); setAviso(null); setData(null); setTab("mercados"); setRotuloAnalisis(null);
     setProgress("⚡ Verificando caché de análisis...");
-    const cached = empezado ? null : await getCachedAnalysis(fixtureId);
+    if (copiaPrePartido) {
+      const parsed = copiaPrePartido.analysis;
+      // Cuanto antes del inicio se genero. Los timestamps de Supabase van
+      // sin zona: se les fija Z para no parsearlos con el reloj local.
+      const utc = (t) => (t && !/Z$|[+-]\d{2}:?\d{2}$/.test(t) ? t + "Z" : t);
+      const gen = new Date(utc(copiaPrePartido.created_at)).getTime();
+      const kick = new Date(utc(copiaPrePartido.expires_at)).getTime();
+      const min = Number.isFinite(gen) && Number.isFinite(kick)
+        ? Math.max(0, Math.round((kick - gen) / 60000))
+        : null;
+      setRotuloAnalisis(`Análisis pre-partido${min != null ? ` (generado ${min} min antes del inicio)` : ""}`);
+      setData(parsed);
+      setSavedAnalysis({
+        local: parsed?.partido?.local || local,
+        visitante: parsed?.partido?.visitante || visitante,
+        competicion: parsed?.partido?.competicion || "N/D",
+        fecha_partido: parsed?.partido?.fecha || "Próximos días",
+        prob_local: parsed?.probabilidades_1x2?.victoria_local || 0,
+        prob_empate: parsed?.probabilidades_1x2?.empate || 0,
+        prob_visitante: parsed?.probabilidades_1x2?.victoria_visitante || 0,
+        bajas_local: "Ver análisis", bajas_visitante: "Ver análisis",
+      });
+      setLoading(false);
+      setAnalizandoId(null);
+      analisisEnCurso.current = false;
+      return;
+    }
+
+    const cached = await getCachedAnalysis(fixtureId);
     if (cached) {
       setData(cached);
       setSavedAnalysis({
@@ -1711,6 +1771,16 @@ export default function BetFutProV3() {
             </button>
 
             {bloqueEstado}
+
+            {rotuloAnalisis && (
+              <div style={{
+                marginBottom: 14, fontSize: 12, fontWeight: 600, borderRadius: 8,
+                padding: "9px 12px", color: C.amber, background: C.amberDim,
+                border: `1px solid ${C.amber}55`, display: "inline-block",
+              }}>
+                ⏱️ {rotuloAnalisis}
+              </div>
+            )}
 
             {/* El movil va sin panel por ahora (estilo propio en otro paso):
                 la media query lo saca del flujo y el contenido ocupa todo. */}
