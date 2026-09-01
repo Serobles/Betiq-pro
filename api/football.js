@@ -1,21 +1,21 @@
 import { exigirSesion } from "./_auth.js";
 
-export default async function handler(req, res) {
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "Method not allowed" });
-  }
+const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
-  res.setHeader("Access-Control-Allow-Origin", "*");
-
-  // 401 ANTES de gastar cuota de API-Football.
-  const usuario = await exigirSesion(req, res);
-  if (!usuario) return;
-
-  const { local, visitante, fixture_id } = req.body;
+// (1/2) obtenerDatosPartido: el pipeline INTERNO completo — acepta nombres
+// o fixture_id y devuelve { http, body }; lo envuelven el handler HTTP y
+// obtenerDatosFixture. No es la entrada del cron.
+// ── Pipeline completo del partido, exportado ──────────────────────────
+// Toda la logica vive en esta funcion y el handler HTTP del final es un
+// envoltorio fino; el cron importa obtenerDatosFixture() de este modulo.
+// Frontera: el CLIENTE jamas importa este archivo — le habla por HTTP.
+// Devuelve { http, body }: el mismo contrato que respondia el endpoint.
+export async function obtenerDatosPartido({ local, visitante, fixture_id } = {}) {
+  const respuesta = (http, body) => ({ http, body });
   const API_KEY = process.env.API_FOOTBALL_KEY;
 
   if (!API_KEY) {
-    return res.status(500).json({ error: "API_FOOTBALL_KEY no configurada" });
+    return respuesta(500, { error: "API_FOOTBALL_KEY no configurada" });
   }
 
   // ── Validación de entrada ─────────────────────────────────────────
@@ -32,7 +32,7 @@ export default async function handler(req, res) {
   const visitanteNombre = typeof visitante === "string" ? visitante.trim() : "";
 
   if (!fixtureIdPedido && (!localNombre || !visitanteNombre)) {
-    return res.status(400).json({
+    return respuesta(400, {
       error:
         "Falta identificar el partido: envia 'fixture_id', o bien 'local' y 'visitante'",
     });
@@ -301,7 +301,7 @@ export default async function handler(req, res) {
       match = d.response?.[0];
 
       if (!match) {
-        return res.status(200).json({
+        return respuesta(200, {
           ...vacio,
           mensaje: `El partido ${fixtureIdPedido} ya no existe en API-Football. Se usará búsqueda web como respaldo.`,
         });
@@ -314,7 +314,7 @@ export default async function handler(req, res) {
 
       if (!equipoLocal || !equipoVisitante) {
         const faltante = !equipoLocal ? localNombre : visitanteNombre;
-        return res.status(200).json({
+        return respuesta(200, {
           ...vacio,
           mensaje: `Equipo no encontrado en API-Football: "${faltante}". Se usará búsqueda web como respaldo.`,
         });
@@ -340,7 +340,7 @@ export default async function handler(req, res) {
         )[0];
 
       if (!match) {
-        return res.status(200).json({
+        return respuesta(200, {
           ...vacio,
           mensaje: `No hay un próximo enfrentamiento programado entre ${equipoLocal.name} y ${equipoVisitante.name} (se revisaron ${enfrentamientos.length} enfrentamientos anteriores). Se usará búsqueda web como respaldo.`,
         });
@@ -378,7 +378,11 @@ export default async function handler(req, res) {
       }
     };
 
-    const [injuriesData, oddsData, statsHomeData, statsAwayData, standingsData] =
+    // Tanda de 4 + pausa, y la 5a despues: la API corta rafagas de mas de 4
+    // peticiones simultaneas (medido), y este Promise.all de 5 era la unica
+    // rafaga que quedaba fuera de la regla — con clicks sueltos mordia poco,
+    // en el bucle del cron morderia seguro.
+    const [injuriesData, oddsData, statsHomeData, statsAwayData] =
       await Promise.all([
         // Lesionados del partido
         pedirOpcional(`/injuries?fixture=${fixtureId}`, "Lesionados"),
@@ -396,9 +400,15 @@ export default async function handler(req, res) {
           `/teams/statistics?team=${awayTeamId}&league=${leagueId}&season=${season}`,
           "Estadisticas del visitante"
         ),
-        // Tabla de posiciones
-        pedirOpcional(`/standings?league=${leagueId}&season=${season}`, "Tabla de posiciones"),
       ]);
+
+    await dormir(250);
+
+    // Tabla de posiciones
+    const standingsData = await pedirOpcional(
+      `/standings?league=${leagueId}&season=${season}`,
+      "Tabla de posiciones"
+    );
 
     // ── 4. Procesar lesionados ────────────────────────────────────────
     // La duplicacion viene de origen: /injuries?fixture= devuelve CADA fila
@@ -579,7 +589,7 @@ export default async function handler(req, res) {
     const posLocal = allStandings.find((t) => t.team?.id === homeTeamId);
     const posVisit = allStandings.find((t) => t.team?.id === awayTeamId);
 
-    return res.status(200).json({
+    return respuesta(200, {
       encontrado: true,
       fixture: {
         id: fixtureId,
@@ -624,7 +634,7 @@ export default async function handler(req, res) {
     // respuesta es ok, y aqui lo que importa es que el motivo real llegue
     // entero en vez de perderse tras un 5xx.
     if (error instanceof ErrorApiFootball) {
-      return res.status(200).json({
+      return respuesta(200, {
         ...vacio,
         error_api: true,
         tipo_error: error.tipo,
@@ -634,7 +644,7 @@ export default async function handler(req, res) {
     }
 
     // Fallo no atribuible a la API (red caida, bug propio).
-    return res.status(500).json({
+    return respuesta(500, {
       error: error.message,
       encontrado: false,
       error_api: false,
@@ -642,4 +652,26 @@ export default async function handler(req, res) {
       mensaje: "Error consultando API-Football. Se usará búsqueda web como respaldo.",
     });
   }
+}
+
+// (2/2) obtenerDatosFixture: el export que importara el CRON — solo
+// fixture_id, devuelve el payload pelado (sin envoltorio http).
+export async function obtenerDatosFixture(fixtureId) {
+  const { body } = await obtenerDatosPartido({ fixture_id: fixtureId });
+  return body;
+}
+
+export default async function handler(req, res) {
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  res.setHeader("Access-Control-Allow-Origin", "*");
+
+  // 401 ANTES de gastar cuota de API-Football.
+  const usuario = await exigirSesion(req, res);
+  if (!usuario) return;
+
+  const { http, body } = await obtenerDatosPartido(req.body || {});
+  return res.status(http).json(body);
 }
