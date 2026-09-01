@@ -48,3 +48,19 @@ finished_at NULL = corrida muerta a medias (timeout/crash). Sin filas nuevas en 
 **Trampa de los 60 días:** GitHub Actions DESACTIVA los workflows con schedule tras 60 días sin commits en el repo, en silencio — y el fallback en vivo lo enmascara (la app sigue funcionando, solo que pagando generación por clic). La señal es cron_runs sin filas nuevas; se rearma con cualquier commit o con el botón "Enable workflow" en Actions.
 
 **Optimización futura de costo:** la Batch API de Anthropic (−50% por token, latencia de horas) es ideal para el cocinero — un pre-caché no tiene prisa. Cuando el volumen crezca (Europa en sábado), migrar llamarClaude() a batches.
+
+## Roadmap acordado (chat de diseño, 1 sep 2026)
+
+El siguiente bloque NO es pagos. Orden acordado:
+
+**1. RECETARIO v2** (siguiente bloque, empezando por lo barato):
+- a) Línea fija de tabla en la cabecera del análisis, determinista desde el payload (grupo, fecha, posición y puntos de ambos equipos) — no desde el texto de la IA.
+- b) ALTITUD: tabla propia en Supabase (estadios), esqueleto sembrado desde API-Football con ids numéricos de equipo y estadio (nunca por nombre), columna altitud rellenada a mano. El análisis busca por el id del estadio del fixture; si no está en la tabla, la línea de altitud NO aparece (silencio honesto). Efecto fuerte = visitante que sube; bajada = efecto débil; la IA compara siempre contra la cuota (los casos famosos ya están descontados por las casas).
+- c) ÁRBITROS: tabla propia (arbitros) sembrada desde el histórico de API-Football — nunca desde portales web (esos solo como vara de control) — con normalización de nombres, mantenida por el cocinero con los partidos de ayer. El prompt solo usa números entregados, jamás inventa promedios; pick de tarjetas solo si existe la línea en las cuotas. Paso 0: diagnóstico de cuán poblado viene el campo referee en las 17 ligas. Plan B condicional: prueba gratis de Sportmonks (el plan Worldwide es caro: €129-219/mes).
+- d) Opcional: etiqueta de versión de receta en el JSON del caché.
+
+**2. PICK DEL DÍA:** motor de selección sobre la despensa (cuota mínima 1.40, máxima probabilidad, valor vs cuota implícita); salida web + imagen vertical (@vercel/og) + Telegram automático (bot) + WhatsApp manual; historial público de resultados (% acierto, yield); pick free diario + premium mensual. Nunca prometer aciertos garantizados.
+
+**3. LANZAMIENTO Y PAGOS:** Kunfupay junto con la fase 2 del proxy, la cuota en servidor y el cierre del USING(true) (los tres pendientes de seguridad de arriba). Política de privacidad (pendiente: 4 datos de Sebas). Google OAuth branding: nombre "BetFut", soporte betfut.co@gmail.com, dominio verificado. Facebook login. Paquete del día uno: Supabase Pro ($25/mes) + dominio propio para auth ($10). Opcional posterior: federación de identidades en Anthropic en vez de API key estática.
+
+**4. Menores conocidos:** el login vuelve a la portada y no al partido; el "#" en la URL tras login; panel de ligas en móvil; timeout de carga fría de fixtures; Batch API (−50%) cuando crezca el volumen.
