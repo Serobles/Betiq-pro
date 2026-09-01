@@ -32,3 +32,19 @@
 **Bug latente resuelto por diseño:** nunca existió política UPDATE en analysis_cache, así que la rama DO UPDATE del upsert del cliente jamás pudo refrescar una fila existente — fallaba en silencio (llamada sin await ni manejo de error). Con la escritura en service_role (salta RLS) el refresco vuelve a ser posible donde corresponde.
 
 **Interino "sin caché de análisis en vivo" hasta que el cron llene la despensa:** generar funciona igual; REABRIR un análisis nuevo regenera (y paga Claude) porque nada escribe el caché. Las filas ya existentes se siguen sirviendo (lectura intacta), incluidas las copias pre-partido de partidos empezados. Motivo para no demorar el paso 3.
+
+## El cocinero (cron) — operación
+
+**Turnos:** GitHub Actions, cron `0 */6 * * *` en UTC = 00/06/12/18 UTC = 10/16/22/04 en Sydney (AEST, UTC+10; en horario de verano AEDT, UTC+11, son las 11/17/23/05). También se puede disparar a mano desde Actions → cocinero (dry_run por defecto true: el botón no gasta por descuido).
+
+**Cómo leer el cuaderno (cron_runs, solo service_role — SQL Editor):**
+```sql
+SELECT started_at, finished_at, generados, saltados_cacheados,
+       saltados_sin_cuotas, fuera_de_tope, errores, podados
+FROM cron_runs ORDER BY started_at DESC LIMIT 10;
+```
+finished_at NULL = corrida muerta a medias (timeout/crash). Sin filas nuevas en >6h = el scheduler no está corriendo. detalle (jsonb) guarda los errores por fixture y si saltó el cortacircuitos.
+
+**Trampa de los 60 días:** GitHub Actions DESACTIVA los workflows con schedule tras 60 días sin commits en el repo, en silencio — y el fallback en vivo lo enmascara (la app sigue funcionando, solo que pagando generación por clic). La señal es cron_runs sin filas nuevas; se rearma con cualquier commit o con el botón "Enable workflow" en Actions.
+
+**Optimización futura de costo:** la Batch API de Anthropic (−50% por token, latencia de horas) es ideal para el cocinero — un pre-caché no tiene prisa. Cuando el volumen crezca (Europa en sábado), migrar llamarClaude() a batches.

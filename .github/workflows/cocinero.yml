@@ -1,12 +1,19 @@
 # ── El cocinero: pre-generacion de analisis (cron, paso 3) ────────────
-# Solo disparo MANUAL (workflow_dispatch) por ahora; el schedule llega en
-# el sub-paso 3c. Los secretos viven en Settings → Secrets and variables
-# → Actions — jamas en el repo:
+# Turno fijo cada 6 horas (UTC) + disparo manual. Los secretos viven en
+# Settings → Secrets and variables → Actions — jamas en el repo:
 #   API_FOOTBALL_KEY, ANTHROPIC_API_KEY, SUPABASE_URL,
 #   SUPABASE_SERVICE_ROLE_KEY (JWT legacy service_role o sb_secret_...).
+#
+# OJO (documentado en CLAUDE.md): GitHub desactiva los schedules tras 60
+# dias sin commits, en silencio. La senal es cron_runs sin filas nuevas.
 name: cocinero
 
 on:
+  schedule:
+    # 00/06/12/18 UTC = 10/16/22/04 Sydney (AEST). En las corridas por
+    # schedule los inputs llegan vacios: el script cae a modo REAL con
+    # max=60 (defensas en el propio script y en el run de abajo).
+    - cron: "0 */6 * * *"
   workflow_dispatch:
     inputs:
       dry_run:
@@ -17,18 +24,26 @@ on:
         description: "Tope de generaciones por corrida"
         default: "60"
 
+# Dos turnos no se pisan: si uno sigue cocinando, el siguiente espera en
+# cola (cancel-in-progress: false — jamas matar una corrida a medias, que
+# dejaria finished_at NULL en el cuaderno sin ser un crash real).
+concurrency:
+  group: cocinero
+  cancel-in-progress: false
+
 jobs:
   cocinar:
     runs-on: ubuntu-latest
-    # Un barrido de sabado (~40 fixtures) son ~2 min de datos + las
-    # generaciones de Claude de 30-60s solapadas de a 2: holgado en 30.
-    timeout-minutes: 30
+    # Sabado pico medido: ~42 fixtures en ventana. Datos ~2 min (tandas de
+    # 4 + mutex) + generaciones de 30-60s solapadas de a 2 ≈ 20 min. El
+    # doble de holgura:
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
 
       # Sin npm install: el script solo importa modulos del propio repo
       # (api/_ligas, api/football, api/_analysis), todos sin dependencias.
@@ -38,4 +53,8 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scripts/cocinero.mjs ${{ inputs.dry_run && '--dry-run' || '' }} --max=${{ inputs.max }}
+        # Doble defensa del modo, como la del max: --dry-run SOLO cuando el
+        # disparo es manual Y el boton lo pide; un schedule (inputs vacios)
+        # resuelve a REAL por construccion, no por accidente de un string
+        # vacio. El script imprime el modo resuelto en su primera linea.
+        run: node scripts/cocinero.mjs ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true && '--dry-run' || '' }} --max=${{ inputs.max || '60' }} --disparador=${{ github.event_name }}

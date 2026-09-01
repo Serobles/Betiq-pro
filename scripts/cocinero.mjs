@@ -36,8 +36,15 @@ import {
 // ── Flags ─────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry-run");
-const MAX = Number((args.find(a => a.startsWith("--max=")) || "--max=60").slice(6));
+// El || 60 no es adorno: en las corridas por schedule los inputs del
+// workflow llegan vacios y "--max=" parsearia a 0 — cero generaciones.
+const MAX = Number((args.find(a => a.startsWith("--max=")) || "--max=60").slice(6)) || 60;
 const SOLO_FIXTURE = Number((args.find(a => a.startsWith("--fixture=")) || "").slice(10)) || null;
+const DISPARADOR = (args.find(a => a.startsWith("--disparador=")) || "--disparador=local").slice(13);
+
+// Primera linea SIEMPRE: el modo resuelto, el tope y quien disparo — para
+// que el registro de una corrida nunca deje dudas de que se ejecuto.
+console.log(`COCINERO — modo=${DRY ? "ENSAYO" : "REAL"} | max=${MAX} | disparador=${DISPARADOR}`);
 
 // ── Credenciales ──────────────────────────────────────────────────────
 const AF_KEY = process.env.API_FOOTBALL_KEY;
@@ -273,6 +280,37 @@ if (DRY) {
   const cola = filas.filter((x) => x.decision === "generar");
   console.log(`\nMODO REAL: ${cola.length} fixtures a generar (Claude max 2 en paralelo)\n`);
 
+  // ── El cuaderno (cron_runs): registra inicio y fin de cada corrida ──
+  // Si el cuaderno no responde se AVISA y se sigue cocinando: un cuaderno
+  // caido no debe apagar la estufa. (La despensa si aborta: sin ella se
+  // generaria sin poder guardar.) El ensayo nunca escribe aqui.
+  const cuaderno = async (metodo, ruta, body) => {
+    try {
+      const r = await fetch(`${SUPA_URL}/rest/v1/${ruta}`, {
+        method: metodo,
+        headers: {
+          ...cabecerasSupa(SUPA_KEY),
+          "content-type": "application/json",
+          Prefer: metodo === "POST" ? "return=representation" : "return=minimal",
+        },
+        body: JSON.stringify(body),
+      });
+      if (!r.ok) throw new Error(`${r.status}: ${(await r.text()).slice(0, 120)}`);
+      return metodo === "POST" ? (await r.json())[0] : true;
+    } catch (e) {
+      console.error(`(aviso) cuaderno cron_runs no responde (${e.message.slice(0, 100)}): se sigue cocinando`);
+      return null;
+    }
+  };
+
+  const filaCuaderno = await cuaderno("POST", "cron_runs", {
+    modo: "real",
+    encontrados: filas.length,
+    saltados_cacheados: cuenta("salta cacheado"),
+    saltados_sin_cuotas: cuenta("salta sin cuotas"),
+    fuera_de_tope: cuenta("fuera de tope"),
+  });
+
   // API-Football en exclusiva mutua: obtenerDatosFixture ya dispara su
   // tanda interna de 4; dos a la vez serian 8 simultaneas y la API corta.
   // Claude si se solapa (hasta 2), que es donde se va el tiempo.
@@ -389,7 +427,39 @@ if (DRY) {
   };
   await Promise.all([obrero(), obrero()]);
 
-  console.log(`\nRESUMEN REAL: generados=${resultado.generados} | salta compuerta definitiva=${resultado.sin_cuotas_definitiva} | errores=${resultado.errores.length}${cortocircuito ? " | CORTACIRCUITOS: detenido tras 3 guardados fallidos consecutivos" : ""}`);
+  // ── Poda: fuera de la despensa lo expirado hace mas de 7 dias ──────
+  // Nada mas la borra (el upsert nunca elimina); sin poda, la tabla — de
+  // lectura publica — acumularia anos de pronosticos muertos. Si falla,
+  // se avisa y se continua: es limpieza, no cocina.
+  let podados = 0;
+  try {
+    const limite = new Date(Date.now() - 7 * 86400000).toISOString();
+    const r = await fetch(
+      `${SUPA_URL}/rest/v1/analysis_cache?expires_at=lt.${limite}&select=fixture_id`,
+      { method: "DELETE", headers: { ...cabecerasSupa(SUPA_KEY), Prefer: "return=representation" } }
+    );
+    const borradas = await r.json();
+    if (!r.ok) throw new Error(JSON.stringify(borradas).slice(0, 120));
+    podados = Array.isArray(borradas) ? borradas.length : 0;
+  } catch (e) {
+    console.error(`(aviso) poda fallida (${e.message.slice(0, 100)}): se continua`);
+  }
+
+  // Cerrar la corrida en el cuaderno. cuenta() lee las decisiones YA
+  // mutadas, asi que "salta sin cuotas" suma el filtro rapido y la
+  // compuerta definitiva, y "error" suma los de cuotas y los de cocina.
+  if (filaCuaderno?.id != null) {
+    await cuaderno("PATCH", `cron_runs?id=eq.${filaCuaderno.id}`, {
+      finished_at: new Date().toISOString(),
+      generados: resultado.generados,
+      saltados_sin_cuotas: cuenta("salta sin cuotas"),
+      errores: cuenta("error"),
+      podados,
+      detalle: { max: MAX, cortocircuito, errores: resultado.errores },
+    });
+  }
+
+  console.log(`\nRESUMEN REAL: generados=${resultado.generados} | salta compuerta definitiva=${resultado.sin_cuotas_definitiva} | errores=${resultado.errores.length} | podados=${podados} | cuaderno=${filaCuaderno ? `fila ${filaCuaderno.id}` : "no disponible"}${cortocircuito ? " | CORTACIRCUITOS: detenido tras 3 guardados fallidos consecutivos" : ""}`);
   for (const e of resultado.errores) console.log(`  - ${e.partido} (${e.id}): ${e.error.slice(0, 160)}`);
   if (cortocircuito) process.exitCode = 1;
   else if (resultado.errores.length && resultado.generados === 0 && cola.length > 0) process.exitCode = 1;
