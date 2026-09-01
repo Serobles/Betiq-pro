@@ -22,3 +22,13 @@
 - analysis_cache sigue con lectura pública USING (true) hasta la fase de pagos.
 
 **Pendiente del timeout de Vercel (resolver junto con el cron):** con 17 ligas, la carga en frío total de /api/fixtures (instancia nueva: timezone + 17 temporadas + 17 fixtures) mide 7.5s reales; si además salta la ronda de reintentos de ligas caídas (+1.5s de pausa + tandas) puede rozar los 10s de timeout por defecto de Vercel Hobby. Es el caso raro (primer arranque + fallos simultáneos). Opciones al montar el cron: subir maxDuration en vercel.json y/o precachear temporadas.
+
+## Notas de sesión — 1 sep 2026
+
+**Candado de la despensa (cron paso 2):** el cliente ya no escribe analysis_cache — se eliminaron la llamada y la función saveAnalysisCache, y la migración supabase/migraciones/2026-09-01_candado_analysis_cache.sql borra cache_insert (la única política de escritura). Solo service_role escribe: el cron (paso 3) y, en fase 2, el servidor. La lectura pública (cache_select, USING true) queda abierta documentada hasta la fase de pagos.
+
+**Modelo de amenaza corregido (fuente: pg_policies, 1-sep):** cache_insert exigía auth.role()='authenticated' — la escritura NUNCA estuvo abierta a anónimos. El riesgo de envenenamiento del caché era de miembros logueados, no de extraños. (La lectura sí es pública.)
+
+**Bug latente resuelto por diseño:** nunca existió política UPDATE en analysis_cache, así que la rama DO UPDATE del upsert del cliente jamás pudo refrescar una fila existente — fallaba en silencio (llamada sin await ni manejo de error). Con la escritura en service_role (salta RLS) el refresco vuelve a ser posible donde corresponde.
+
+**Interino "sin caché de análisis en vivo" hasta que el cron llene la despensa:** generar funciona igual; REABRIR un análisis nuevo regenera (y paga Claude) porque nada escribe el caché. Las filas ya existentes se siguen sirviendo (lectura intacta), incluidas las copias pre-partido de partidos empezados. Motivo para no demorar el paso 3.

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, getCachedAnalysisCaducado, saveAnalysisCache, checkAndIncrementAnalysis, yaVioFixture, marcarFixtureVisto, loadHistorialSupabase, saveHistorialSupabase, PLAN_LIMITS } from './supabase.js';
+import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, getCachedAnalysisCaducado, checkAndIncrementAnalysis, yaVioFixture, marcarFixtureVisto, loadHistorialSupabase, saveHistorialSupabase, PLAN_LIMITS } from './supabase.js';
 // Logica pura del analisis (prompt, searchData, parseo, normalizacion,
 // posts): compartida con el cron via api/_analysis.js para que ambos
 // produzcan EXACTAMENTE el mismo JSON cacheado.
@@ -1389,8 +1389,9 @@ export default function BetFutProV3() {
 
       setData(parsed);
 
-      // ── Guardar en caché Supabase (por fixture, caduca al kickoff) ──
-      if (!empezado) saveAnalysisCache(fixtureId, timestamp, local, visitante, parsed);
+      // Interino sin cache en vivo: el cliente ya no escribe analysis_cache
+      // (la politica cache_insert se elimino el 1-sep-2026). La despensa la
+      // llena el cron con service_role (paso 3) y, en fase 2, el servidor.
 
       // ── Guardar snapshot del análisis para permitir guardar desde cada mercado ──
       setSavedAnalysis({

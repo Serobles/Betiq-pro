@@ -62,19 +62,14 @@ export const getCachedAnalysisCaducado = async (fixtureId) => {
 }
 
 // expires_at = hora del partido: el filtro gt(expires_at) de la lectura
-// garantiza en el servidor que el pronostico de un partido ya empezado no se
-// sirva jamas como vigente. match_key se rellena con "fixture:<id>" solo para
-// satisfacer la clave vieja de la tabla; no colisiona con las claves por
-// nombres.
-export const saveAnalysisCache = async (fixtureId, kickoffUnix, local, visitante, analysis) => {
-  if (!supabase || !fixtureId) return
-  await supabase.from('analysis_cache').upsert({
-    match_key:  `fixture:${fixtureId}`,
-    fixture_id: fixtureId,
-    local, visitante, analysis,
-    expires_at: new Date(kickoffUnix ? kickoffUnix * 1000 : Date.now() + 24 * 60 * 60 * 1000).toISOString()
-  }, { onConflict: 'fixture_id' })
-}
+// vigente garantiza que el pronostico de un partido ya empezado no se sirva
+// jamas como actual.
+//
+// La ESCRITURA del cache ya no vive en el cliente: la politica cache_insert
+// se elimino el 1-sep-2026 y solo service_role escribe — el cron (paso 3) y,
+// en fase 2, el servidor. El contrato de escritura (match_key "fixture:<id>",
+// fixture_id como clave de conflicto, expires_at = kickoff) lo implementa el
+// escritor del lado servidor.
 
 // ── Cuota por fixture visto (opcion B) ────────────────────
 // Abrir un analisis descuenta cuota solo la PRIMERA vez que este usuario ve
