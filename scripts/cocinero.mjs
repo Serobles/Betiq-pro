@@ -34,6 +34,7 @@ import {
   construirMensajeUsuario,
   parsearRespuestaAnalisis,
   normalizarAnalisis,
+  adjuntarTabla,
   adjuntarPosts,
 } from "../api/_analysis.js";
 
@@ -489,6 +490,7 @@ if (DRY) {
     const texto = await llamarClaude(mensaje);
     const parsed = parsearRespuestaAnalisis(texto);
     normalizarAnalisis(parsed);
+    adjuntarTabla(parsed, datos);
     adjuntarPosts(parsed);
     // Para el futuro "cuotas tomadas hace Xh" y para auditar el cron.
     parsed.generated_at = new Date().toISOString();

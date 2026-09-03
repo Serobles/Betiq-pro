@@ -3,7 +3,7 @@ import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, getCac
 // Logica pura del analisis (prompt, searchData, parseo, normalizacion,
 // posts): compartida con el cron via api/_analysis.js para que ambos
 // produzcan EXACTAMENTE el mismo JSON cacheado.
-import { SYSTEM_PROMPT, construirSearchData, searchDataSinDatos, construirMensajeUsuario, parsearRespuestaAnalisis, normalizarAnalisis, adjuntarPosts } from "../api/_analysis.js";
+import { SYSTEM_PROMPT, construirSearchData, searchDataSinDatos, construirMensajeUsuario, parsearRespuestaAnalisis, normalizarAnalisis, adjuntarTabla, adjuntarPosts } from "../api/_analysis.js";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -1380,11 +1380,12 @@ export default function BetFutProV3() {
 
       clearInterval(iv);
 
-      // Parseo, normalizacion y posts viven en api/_analysis.js: el JSON que
-      // se guarda en cache debe ser identico lo genere quien lo genere, porque
-      // el cache-hit lo pinta tal cual sin volver a normalizar.
+      // Parseo, normalizacion, tabla y posts viven en api/_analysis.js: el
+      // JSON que se guarda en cache debe ser identico lo genere quien lo
+      // genere, porque el cache-hit lo pinta tal cual sin volver a normalizar.
       const parsed = parsearRespuestaAnalisis(jsonRaw);
       normalizarAnalisis(parsed);
+      adjuntarTabla(parsed, footballData);
       const { bL, bV, pr } = adjuntarPosts(parsed);
 
       setData(parsed);
@@ -1889,14 +1890,30 @@ export default function BetFutProV3() {
                 </div>
 
                 {/* INFO PARTIDO */}
+                {/* La linea de tabla (tabla_cabecera) es del Recetario v2:
+                    los analisis viejos (sin receta) no la traen y no debe
+                    quedar ni hueco — por eso cada pieza va condicionada. */}
                 <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 10, padding: "14px 20px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <div style={{ fontWeight: 800, fontSize: 16 }}>{data.partido.local}</div>
+                  <div>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>{data.partido.local}</div>
+                    {data.tabla_cabecera && (
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{data.tabla_cabecera.local?.pos}° · {data.tabla_cabecera.local?.pts} pts</div>
+                    )}
+                  </div>
                   <div style={{ textAlign: "center" }}>
                     <div style={{ color: C.accent, fontWeight: 900 }}>VS</div>
                     <div style={{ fontSize: 11, color: C.muted }}>{data.partido.competicion}</div>
                     <div style={{ fontSize: 10, color: C.dim }}>{data.partido.fecha}</div>
+                    {data.tabla_cabecera && (
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>📊 {data.tabla_cabecera.texto}</div>
+                    )}
                   </div>
-                  <div style={{ fontWeight: 800, fontSize: 16, textAlign: "right" }}>{data.partido.visitante}</div>
+                  <div style={{ textAlign: "right" }}>
+                    <div style={{ fontWeight: 800, fontSize: 16 }}>{data.partido.visitante}</div>
+                    {data.tabla_cabecera && (
+                      <div style={{ fontSize: 11, color: C.muted, marginTop: 2 }}>{data.tabla_cabecera.visitante?.pos}° · {data.tabla_cabecera.visitante?.pts} pts</div>
+                    )}
+                  </div>
                 </div>
 
                 {/* TABS ANÁLISIS */}

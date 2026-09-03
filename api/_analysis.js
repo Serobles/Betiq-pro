@@ -234,6 +234,30 @@ export const normalizarAnalisis = (parsed) => {
   return parsed;
 };
 
+// ── Linea fija de tabla en la cabecera (Recetario v2a) ────────────────
+// Determinista desde el payload de football.js (posicion_local/visitante
+// y tabla), jamas del texto de la IA. Muta analisis. Regla: tabla_cabecera
+// solo se añade si AMBOS equipos traen posicion y puntos; si falta
+// cualquiera (etapa no identificada, eliminatorias, dato incompleto) el
+// campo NO existe — silencio honesto, sin placeholder ni texto de relleno.
+// receta marca la version del recetario (roadmap 1d) y va SIEMPRE, con o
+// sin tabla: los analisis viejos no lo llevan y no se migran.
+export const adjuntarTabla = (analisis, f) => {
+  analisis.receta = 2;
+  // Defensa: si el modelo llegara a inventar una tabla_cabecera propia,
+  // aqui muere — la unica que existe es la determinista de abajo.
+  delete analisis.tabla_cabecera;
+  const l = f?.posicion_local;
+  const v = f?.posicion_visitante;
+  if (l?.pos == null || l?.pts == null || v?.pos == null || v?.pts == null) return analisis;
+  analisis.tabla_cabecera = {
+    texto: f.tabla,
+    local: { pos: l.pos, pts: l.pts },
+    visitante: { pos: v.pos, pts: v.pts },
+  };
+  return analisis;
+};
+
 // ── Posts para compartir ──────────────────────────────────────────────
 // Muta parsed (post_telegram/post_whatsapp) y devuelve { bL, bV, pr },
 // que el cliente reutiliza para el snapshot del historial.
