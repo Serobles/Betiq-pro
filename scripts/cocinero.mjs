@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ── El cocinero: pre-generador de analisis (cron, paso 3) ─────────────
 // Recorre las ligas del producto, selecciona los partidos con kickoff en
-// las proximas 24h y decide cuales generar. CERO copias de logica: las
+// las proximas 32h y decide cuales generar. CERO copias de logica: las
 // ligas salen de api/_ligas.js, el pipeline de datos de api/football.js
 // y el prompt/parseo/normalizacion/posts de api/_analysis.js.
 //
@@ -149,9 +149,10 @@ const resolverSeason = async (ligaId) => {
 };
 
 // ── 2. Seleccion: NS con kickoff en [ahora, ahora+ventana], en UTC ────
-// El cocinero sigue en 24h (hastaS); la sonda pide 72h por parametro.
+// El cocinero va en 32h (hastaS); la sonda pide 72h por parametro.
 const ahoraS = Math.floor(Date.now() / 1000);
-const hastaS = ahoraS + 86400;
+// 32h porque la promesa es despensa 24h antes del kickoff y las corridas van cada ~6-8h (retraso del schedule incluido): peor caso ~24h. Respaldo: sonda 3-sep-2026 (Europa 100% con cuotas a 24-72h; Sudamerica ~89-91%).
+const hastaS = ahoraS + 32 * 3600;
 const hastaSondaS = ahoraS + 72 * 3600;
 
 // Ligas que la seleccion perdio (season irresoluble o fixtures caidos).

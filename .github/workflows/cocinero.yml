@@ -38,10 +38,10 @@ concurrency:
 jobs:
   cocinar:
     runs-on: ubuntu-latest
-    # Sabado pico medido: ~42 fixtures en ventana. Datos ~2 min (tandas de
-    # 4 + mutex) + generaciones de 30-60s solapadas de a 2 ≈ 20 min. El
-    # doble de holgura:
-    timeout-minutes: 45
+    # Pico estimado con ventana de 32h: ~56 fixtures (medido: ~42 en 24h).
+    # Datos ~2 min (tandas de 4 + mutex) + generaciones de 30-60s solapadas
+    # de a 2 ≈ 27 min. El doble de holgura:
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 

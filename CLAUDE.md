@@ -47,6 +47,10 @@ finished_at NULL = corrida muerta a medias (timeout/crash). Sin filas nuevas en 
 
 **Trampa de los 60 días:** GitHub Actions DESACTIVA los workflows con schedule tras 60 días sin commits en el repo, en silencio — y el fallback en vivo lo enmascara (la app sigue funcionando, solo que pagando generación por clic). La señal es cron_runs sin filas nuevas; se rearma con cualquier commit o con el botón "Enable workflow" en Actions.
 
+**Trampa de la cola del schedule:** el schedule de GitHub dispara siempre, pero con 2-5h de cola (medido 1-3 sep 2026). No es un crash y pagar no lo quita; lo que importa es el espacio real entre corridas (~6-8h con retraso incluido) — la ventana del cocinero (32h) está dimensionada contando ese retraso.
+
+**Cobertura Bet365/Betano (sonda 3-sep-2026):** Europa 100% con cuotas incluso a 72h; Sudamérica ~90% a 24-72h; Venezuela 0/5 — posible falta de cobertura de las dos casas, pendiente confirmar con una segunda sonda antes de sacar conclusiones.
+
 **Optimización futura de costo:** la Batch API de Anthropic (−50% por token, latencia de horas) es ideal para el cocinero — un pre-caché no tiene prisa. Cuando el volumen crezca (Europa en sábado), migrar llamarClaude() a batches.
 
 ## Roadmap acordado (chat de diseño, 1 sep 2026)
