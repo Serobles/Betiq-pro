@@ -23,6 +23,10 @@ on:
       max:
         description: "Tope de generaciones por corrida"
         default: "60"
+      sonda:
+        description: "Sonda de cuotas (72h, solo lectura del mercado)"
+        type: boolean
+        default: false
 
 # Dos turnos no se pisan: si uno sigue cocinando, el siguiente espera en
 # cola (cancel-in-progress: false — jamas matar una corrida a medias, que
@@ -53,8 +57,9 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        # Doble defensa del modo, como la del max: --dry-run SOLO cuando el
-        # disparo es manual Y el boton lo pide; un schedule (inputs vacios)
-        # resuelve a REAL por construccion, no por accidente de un string
-        # vacio. El script imprime el modo resuelto en su primera linea.
-        run: node scripts/cocinero.mjs ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true && '--dry-run' || '' }} --max=${{ inputs.max || '60' }} --disparador=${{ github.event_name }}
+        # Doble defensa del modo, como la del max: --dry-run y --sonda SOLO
+        # cuando el disparo es manual Y el boton lo pide; un schedule
+        # (inputs vacios) resuelve a REAL por construccion, no por accidente
+        # de un string vacio. El script imprime el modo resuelto en su
+        # primera linea.
+        run: node scripts/cocinero.mjs ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true && '--dry-run' || '' }} ${{ github.event_name == 'workflow_dispatch' && inputs.sonda == true && '--sonda' || '' }} --max=${{ inputs.max || '60' }} --disparador=${{ github.event_name }}

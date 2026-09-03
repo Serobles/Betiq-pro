@@ -13,6 +13,10 @@
 // Uso:
 //   node scripts/cocinero.mjs --dry-run [--max=60] [--fixture=ID]   ensayo
 //   node scripts/cocinero.mjs [--max=60] [--fixture=ID]             REAL
+//   node scripts/cocinero.mjs --sonda                               sonda de cuotas
+//     (72h, solo lectura del mercado: sin Claude, sin despensa, sin
+//      cuaderno; ignora --dry-run, --max y --fixture; solo pide
+//      API_FOOTBALL_KEY)
 //
 // Env en ensayo: API_FOOTBALL_KEY (siempre); SUPABASE_URL + una clave
 // (anon o service) para el filtro de despensa — si faltan, despensa
@@ -36,15 +40,21 @@ import {
 // ── Flags ─────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry-run");
+const SONDA = args.includes("--sonda");
 // El || 60 no es adorno: en las corridas por schedule los inputs del
 // workflow llegan vacios y "--max=" parsearia a 0 — cero generaciones.
 const MAX = Number((args.find(a => a.startsWith("--max=")) || "--max=60").slice(6)) || 60;
-const SOLO_FIXTURE = Number((args.find(a => a.startsWith("--fixture=")) || "").slice(10)) || null;
+// La sonda tambien ignora --fixture: mide el mercado completo, nunca un
+// partido suelto (la rama SOLO_FIXTURE ademas etiqueta la liga con otro
+// formato y descuadraria las tablas).
+const SOLO_FIXTURE = SONDA ? null : Number((args.find(a => a.startsWith("--fixture=")) || "").slice(10)) || null;
 const DISPARADOR = (args.find(a => a.startsWith("--disparador=")) || "--disparador=local").slice(13);
 
 // Primera linea SIEMPRE: el modo resuelto, el tope y quien disparo — para
 // que el registro de una corrida nunca deje dudas de que se ejecuto.
-console.log(`COCINERO — modo=${DRY ? "ENSAYO" : "REAL"} | max=${MAX} | disparador=${DISPARADOR}`);
+// La sonda ignora --dry-run, --max y --fixture: no cocina, solo mide.
+if (SONDA) console.log(`SONDA: solo lectura del mercado | ventana=72h | disparador=${DISPARADOR}`);
+else console.log(`COCINERO — modo=${DRY ? "ENSAYO" : "REAL"} | max=${MAX} | disparador=${DISPARADOR}`);
 
 // ── Credenciales ──────────────────────────────────────────────────────
 const AF_KEY = process.env.API_FOOTBALL_KEY;
@@ -57,8 +67,9 @@ const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_A
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || "";
 
 // El modo real gasta dinero: si falta un secreto, se para AQUI con la
-// lista completa, no a mitad de corrida.
-if (!DRY) {
+// lista completa, no a mitad de corrida. La sonda no cocina ni escribe:
+// con --sonda basta API_FOOTBALL_KEY y no se exige nada mas.
+if (!DRY && !SONDA) {
   const faltan = [];
   if (!ANTHROPIC_KEY) faltan.push("ANTHROPIC_API_KEY");
   if (!SUPA_URL) faltan.push("SUPABASE_URL");
@@ -112,7 +123,10 @@ const enTandas = async (items, fn) => {
 
 // Peticion a API-Football con la misma deteccion de errores del resto del
 // repo: errors llega como [] cuando no hay error (truthy enganoso).
+// El contador alimenta el reporte de la sonda (costo real de la corrida).
+let peticionesAF = 0;
 const af = async (ruta) => {
+  peticionesAF++;
   const r = await fetch(`https://v3.football.api-sports.io${ruta}`, {
     headers: { "x-apisports-key": AF_KEY },
   });
@@ -134,13 +148,21 @@ const resolverSeason = async (ligaId) => {
   return s?.year ?? null;
 };
 
-// ── 2. Seleccion: NS con kickoff en [ahora, ahora+24h], en UTC ────────
+// ── 2. Seleccion: NS con kickoff en [ahora, ahora+ventana], en UTC ────
+// El cocinero sigue en 24h (hastaS); la sonda pide 72h por parametro.
 const ahoraS = Math.floor(Date.now() / 1000);
 const hastaS = ahoraS + 86400;
-const desdeFecha = new Date(ahoraS * 1000).toISOString().slice(0, 10);
-const hastaFecha = new Date(hastaS * 1000).toISOString().slice(0, 10);
+const hastaSondaS = ahoraS + 72 * 3600;
 
-const seleccionar = async () => {
+// Ligas que la seleccion perdio (season irresoluble o fixtures caidos).
+// La sonda las lista en su reporte para que "—" nunca esconda un fallo de
+// datos; el cocinero normal no lee esta lista (su red es el fallback en
+// vivo, que regenera al abrir el partido).
+const ligasSinDatos = [];
+
+const seleccionar = async (limiteS = hastaS) => {
+  const desdeFecha = new Date(ahoraS * 1000).toISOString().slice(0, 10);
+  const hastaFecha = new Date(limiteS * 1000).toISOString().slice(0, 10);
   if (SOLO_FIXTURE) {
     const d = await af(`/fixtures?id=${SOLO_FIXTURE}`);
     const f = d.response?.[0];
@@ -149,7 +171,12 @@ const seleccionar = async () => {
   }
 
   // season por liga, en tandas
+  ligasSinDatos.length = 0;
   const seasons = await enTandas(LIGAS, async (l) => ({ id: l.id, season: await resolverSeason(l.id) }));
+  LIGAS.forEach((l, i) => {
+    if (seasons[i]?.season == null)
+      ligasSinDatos.push(`${l.nombre} — ${seasons[i]?.__error ? `season: ${seasons[i].__error}` : "sin season vigente"}`);
+  });
   const conSeason = LIGAS.map((l, i) => ({ ...l, season: seasons[i]?.season }))
     .filter((l) => l.season != null);
 
@@ -158,6 +185,9 @@ const seleccionar = async () => {
   const porLiga = await enTandas(conSeason, async (l) => {
     const d = await af(`/fixtures?league=${l.id}&season=${l.season}&from=${desdeFecha}&to=${hastaFecha}&timezone=UTC`);
     return (d.response || []).map((f) => ({ f, liga: l.nombre }));
+  });
+  porLiga.forEach((x, i) => {
+    if (x?.__error) ligasSinDatos.push(`${conSeason[i].nombre} — fixtures: ${x.__error}`);
   });
 
   return porLiga.flat().filter((x) => x && !x.__error);
@@ -209,6 +239,72 @@ const tieneCuotas = async (fixtureId) => {
   const casas = d.response?.[0]?.bookmakers || [];
   return casas.some((b) => (b.id === 8 || b.id === 32) && (b.bets || []).length > 0);
 };
+
+// ── Sonda de cuotas: mide el mercado a 72h, sin cocinar ───────────────
+// Solo lectura de API-Football: cero Claude, cero despensa, cero
+// cuaderno. Responde a "¿a cuantas horas del kickoff cuelgan linea
+// Bet365/Betano por region?" para dimensionar la ventana del cocinero
+// sin pagar generaciones por averiguarlo.
+if (SONDA) {
+  const EUROPA = new Set([39, 140, 135, 78, 61]); // las 5 grandes de api/_ligas.js
+  const region = (f) => (EUROPA.has(f.league?.id) ? "Europa" : "Sudamerica");
+  const BUCKETS = ["0-24h", "24-48h", "48-72h"];
+  // ts <= hastaSondaS garantiza <= 72h; el clamp cubre el borde exacto.
+  const bucketDe = (ts) => BUCKETS[Math.min(2, Math.floor((ts - ahoraS) / 86400))];
+
+  const candidatos = await seleccionar(hastaSondaS);
+  const vivos = candidatos.filter(({ f }) => {
+    const ts = f.fixture?.timestamp || 0;
+    return f.fixture?.status?.short === "NS" && ts >= ahoraS && ts <= hastaSondaS;
+  });
+
+  const cuotas = await enTandas(vivos, ({ f }) => tieneCuotas(f.fixture.id));
+  const medidos = vivos.map((x, i) => {
+    const c = cuotas[i];
+    return { liga: x.liga, con: c === true, err: Boolean(c && c.__error), bucket: bucketDe(x.f.fixture.timestamp), region: region(x.f) };
+  });
+  const errores = medidos.filter((x) => x.err).length;
+
+  // Un chequeo caido NO es "sin cuotas": se saca del denominador y se
+  // anota en la celda (+Nerr) — un % desinflado por errores dirigiria mal
+  // la decision de ventana, que es justo lo que la sonda alimenta.
+  const celda = (xs) => {
+    if (!xs.length) return "—";
+    const err = xs.filter((x) => x.err).length;
+    const ok = xs.length - err;
+    const con = xs.filter((x) => x.con).length;
+    const pct = ok ? `${con}/${ok} (${Math.round((con / ok) * 100)}%)` : "s/d";
+    return err ? `${pct} +${err}err` : pct;
+  };
+  const ancho = (s, n) => String(s ?? "").slice(0, n).padEnd(n);
+  const tabla = (titulo, grupos) => {
+    console.log(`\n${titulo}`);
+    console.log(`${ancho("", 32)} ${BUCKETS.map((b) => ancho(b, 18)).join(" ")} ${ancho("total", 18)}`);
+    console.log("─".repeat(110));
+    for (const [nombre, xs] of grupos) {
+      const porBucket = BUCKETS.map((b) => ancho(celda(xs.filter((x) => x.bucket === b)), 18));
+      console.log(`${ancho(nombre, 32)} ${porBucket.join(" ")} ${ancho(celda(xs), 18)}`);
+    }
+  };
+
+  console.log(`\nSONDA — ventana UTC ${new Date(ahoraS * 1000).toISOString().slice(0, 16)}Z → ${new Date(hastaSondaS * 1000).toISOString().slice(0, 16)}Z | fixtures NS=${vivos.length}`);
+  tabla("Por region (con cuotas / total):", [
+    ["Europa", medidos.filter((x) => x.region === "Europa")],
+    ["Sudamerica", medidos.filter((x) => x.region === "Sudamerica")],
+  ]);
+  // Desglose en el orden del producto; una liga sin partidos en ventana
+  // pinta "—" en vez de desaparecer. Y "—" no puede esconder un fallo:
+  // las ligas que la seleccion perdio se listan aparte, abajo.
+  tabla("Por liga (con cuotas / total):",
+    LIGAS.map((l) => [l.nombre, medidos.filter((x) => x.liga === l.nombre)])
+  );
+  if (ligasSinDatos.length) {
+    console.log(`\nOJO — ligas sin datos en esta corrida (sus "—" no significan "sin partidos"):`);
+    for (const l of ligasSinDatos) console.log(`  - ${l}`);
+  }
+  console.log(`\nPeticiones a API-Football usadas: ${peticionesAF}${errores ? ` | chequeos de cuotas con error (excluidos del %): ${errores}` : ""}`);
+  process.exit(0);
+}
 
 // ── Decidir ───────────────────────────────────────────────────────────
 const candidatos = await seleccionar();
