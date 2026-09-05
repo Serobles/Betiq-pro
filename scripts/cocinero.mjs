@@ -40,6 +40,7 @@ import {
   parsearRespuestaAnalisis,
   normalizarAnalisis,
   adjuntarTabla,
+  adjuntarAltitud,
   adjuntarPosts,
 } from "../api/_analysis.js";
 
@@ -629,6 +630,7 @@ if (DRY) {
     const parsed = parsearRespuestaAnalisis(texto);
     normalizarAnalisis(parsed);
     adjuntarTabla(parsed, datos);
+    adjuntarAltitud(parsed, datos);
     adjuntarPosts(parsed);
     // Para el futuro "cuotas tomadas hace Xh" y para auditar el cron.
     parsed.generated_at = new Date().toISOString();

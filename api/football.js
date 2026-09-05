@@ -2,6 +2,65 @@ import { exigirSesion } from "./_auth.js";
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
+// ── Lector de altitudes (Recetario v2b, receta 3) ─────────────────────
+// Lee `estadios` y `equipos_estadio` de Supabase (SELECT publica) con las
+// mismas credenciales que api/_auth.js y, como respaldo, la service key —
+// el unico contexto sin anon key es el cron de GitHub Actions. REGLA
+// DURA: sin credencial, tabla ausente o cualquier error → altitudes null
+// y se sigue; la altitud jamas rompe ni retrasa un analisis (timeout
+// propio de 3s por consulta). Maximo 2 consultas por partido.
+const leerAltitudes = async (localTeamId, visitanteTeamId, venuePartidoId) => {
+  const nulos = { partido_m: null, local_origen_m: null, visitante_origen_m: null };
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const clave =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !clave) return nulos;
+
+  // La sb_secret_ va SOLO en apikey; un JWT (anon o service legacy) va
+  // tambien en Authorization — mismo criterio que el cocinero.
+  const cabeceras = clave.startsWith("sb_secret_")
+    ? { apikey: clave }
+    : { apikey: clave, Authorization: `Bearer ${clave}` };
+  const consulta = async (ruta) => {
+    const r = await fetch(`${url}/rest/v1/${ruta}`, {
+      headers: cabeceras,
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!r.ok) throw new Error(`Supabase ${r.status}`);
+    const filas = await r.json();
+    if (!Array.isArray(filas)) throw new Error("respuesta no tabular");
+    return filas;
+  };
+
+  try {
+    // Consulta 1: estadio habitual de ambos equipos (de donde VIENEN).
+    const habituales = await consulta(
+      `equipos_estadio?select=team_id,venue_id&team_id=in.(${localTeamId},${visitanteTeamId})`
+    );
+    const venueLocal = habituales.find((x) => x.team_id === localTeamId)?.venue_id ?? null;
+    const venueVisit = habituales.find((x) => x.team_id === visitanteTeamId)?.venue_id ?? null;
+
+    // Consulta 2: altitudes de los venue_id involucrados (partido + origenes).
+    const ids = [...new Set([venuePartidoId, venueLocal, venueVisit].filter((v) => v != null))];
+    if (!ids.length) return nulos;
+    const filas = await consulta(
+      `estadios?select=venue_id,altitud_m&venue_id=in.(${ids.join(",")})`
+    );
+    const altitudDe = (vid) =>
+      vid == null ? null : filas.find((x) => x.venue_id === vid)?.altitud_m ?? null;
+
+    return {
+      partido_m: altitudDe(venuePartidoId),
+      local_origen_m: altitudDe(venueLocal),
+      visitante_origen_m: altitudDe(venueVisit),
+    };
+  } catch {
+    return nulos;
+  }
+};
+
 // (1/2) obtenerDatosPartido: el pipeline INTERNO completo — acepta nombres
 // o fixture_id y devuelve { http, body }; lo envuelven el handler HTTP y
 // obtenerDatosFixture. No es la entrada del cron.
@@ -632,6 +691,11 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
     // para la IA; el dato no se toca.
     const statsPeriodo = `temporada ${season} completa (todas las etapas sumadas)`;
 
+    // ── 7b. Altitud (receta 3): donde se juega y de donde viene cada
+    // equipo. Cualquier hueco (tabla sin sembrar, altitud_m sin rellenar,
+    // Supabase caido) queda en null — silencio honesto, jamas se rompe.
+    const altitud = await leerAltitudes(homeTeamId, awayTeamId, match.fixture.venue?.id ?? null);
+
     return respuesta(200, {
       encontrado: true,
       fixture: {
@@ -664,6 +728,7 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
       // que la IA lo adivine.
       tabla,
       stats_periodo: statsPeriodo,
+      altitud,
       posicion_local: posLocal
         ? { pos: posLocal.rank, pts: posLocal.points, forma: posLocal.form, grupo: posLocal.grupo }
         : null,

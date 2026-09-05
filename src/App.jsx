@@ -3,7 +3,7 @@ import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, getCac
 // Logica pura del analisis (prompt, searchData, parseo, normalizacion,
 // posts): compartida con el cron via api/_analysis.js para que ambos
 // produzcan EXACTAMENTE el mismo JSON cacheado.
-import { SYSTEM_PROMPT, construirSearchData, searchDataSinDatos, construirMensajeUsuario, parsearRespuestaAnalisis, normalizarAnalisis, adjuntarTabla, adjuntarPosts } from "../api/_analysis.js";
+import { SYSTEM_PROMPT, construirSearchData, searchDataSinDatos, construirMensajeUsuario, parsearRespuestaAnalisis, normalizarAnalisis, adjuntarTabla, adjuntarAltitud, adjuntarPosts } from "../api/_analysis.js";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -1386,6 +1386,7 @@ export default function BetFutProV3() {
       const parsed = parsearRespuestaAnalisis(jsonRaw);
       normalizarAnalisis(parsed);
       adjuntarTabla(parsed, footballData);
+      adjuntarAltitud(parsed, footballData);
       const { bL, bV, pr } = adjuntarPosts(parsed);
 
       setData(parsed);
@@ -1906,6 +1907,9 @@ export default function BetFutProV3() {
                     <div style={{ fontSize: 10, color: C.dim }}>{data.partido.fecha}</div>
                     {data.tabla_cabecera && (
                       <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>📊 {data.tabla_cabecera.texto}</div>
+                    )}
+                    {data.altitud_info && data.altitud_info.banda !== "ruido" && (
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>🏔 {data.altitud_info.partido_m} m</div>
                     )}
                   </div>
                   <div style={{ textAlign: "right" }}>

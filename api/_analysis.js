@@ -100,7 +100,7 @@ ${formatStats(f.stats_visitante, f.posicion_visitante)}
 
 ${tituloCuotas}
 ${bloqueCuotas}
-
+${bloqueAltitud(f.altitud)}
 BAJAS ${f.fixture?.local?.nombre?.toUpperCase()}:
 ${formatLesionados(f.lesionados_local)}
 
@@ -109,6 +109,25 @@ ${formatLesionados(f.lesionados_visitante)}
 
 CONTEXTO: ${f.fixture?.estadio || "N/D"}, ${f.fixture?.ciudad || "N/D"} | Arbitro: ${f.fixture?.arbitro || "Por confirmar"}
 FUENTE: API-Football (datos oficiales en tiempo real)`;
+};
+
+// Bloque de altitud del prompt: solo con dato REAL del estadio del
+// partido — sin dato, ni una palabra, que el modelo no improvise. El
+// delta se firma (sube/baja) porque un visitante de altura que BAJA es
+// el caso debil, no el fuerte. Va ANTES de las bajas a proposito: el
+// recorte de 2500 del mensaje come por la cola, y un numero de altitud
+// sin su regla anti-doble-conteo (o pintado en cabecera sin haber
+// llegado al modelo) es peor que perder lineas de bajas.
+const bloqueAltitud = (a) => {
+  if (a?.partido_m == null) return "";
+  const delta = a.visitante_origen_m != null ? a.partido_m - a.visitante_origen_m : null;
+  const origen = delta != null
+    ? `, visitante viene de ${a.visitante_origen_m} m (${delta >= 0 ? "sube" : "baja"} ~${Math.abs(delta)} m)`
+    : "";
+  return `
+ALTITUD: partido a ${a.partido_m} m${origen}.
+Instruccion de altitud: pesa sobre todo si el visitante sube mas de 1500 m; La Paz, Quito y Bogota ya las descuenta el mercado — señalala SOLO si la cuota no lo refleja; sin dato de altitud, ni mencionarla.
+`;
 };
 
 // Sin datos de API-Football: Claude analiza con conocimiento propio
@@ -234,16 +253,20 @@ export const normalizarAnalisis = (parsed) => {
   return parsed;
 };
 
+// Version del recetario (roadmap 1d): sube cuando cambia la receta del
+// JSON. Historia: 2 = tabla_cabecera (3-sep), 3 = altitud (5-sep). Los
+// analisis viejos conservan la suya y no se migran.
+export const RECETA_VERSION = 3;
+
 // ── Linea fija de tabla en la cabecera (Recetario v2a) ────────────────
 // Determinista desde el payload de football.js (posicion_local/visitante
 // y tabla), jamas del texto de la IA. Muta analisis. Regla: tabla_cabecera
 // solo se añade si AMBOS equipos traen posicion y puntos; si falta
 // cualquiera (etapa no identificada, eliminatorias, dato incompleto) el
 // campo NO existe — silencio honesto, sin placeholder ni texto de relleno.
-// receta marca la version del recetario (roadmap 1d) y va SIEMPRE, con o
-// sin tabla: los analisis viejos no lo llevan y no se migran.
+// receta (RECETA_VERSION) va SIEMPRE, con o sin tabla.
 export const adjuntarTabla = (analisis, f) => {
-  analisis.receta = 2;
+  analisis.receta = RECETA_VERSION;
   // Defensa: si el modelo llegara a inventar una tabla_cabecera propia,
   // aqui muere — la unica que existe es la determinista de abajo.
   delete analisis.tabla_cabecera;
@@ -255,6 +278,33 @@ export const adjuntarTabla = (analisis, f) => {
     local: { pos: l.pos, pts: l.pts },
     visitante: { pos: v.pos, pts: v.pts },
   };
+  return analisis;
+};
+
+// ── Linea de altitud en la cabecera (Recetario v2b, receta 3) ─────────
+// Determinista desde f.altitud (football.js, seccion 7b), jamas del texto
+// de la IA. Muta analisis. Sin altitud del partido, el campo NO existe.
+// Umbrales de banda por la altitud del PARTIDO, en metros: el efecto
+// fisiologico arranca ~1500 y se dispara ~2500 (La Paz 3600, Quito 2850,
+// Bogota 2600). La banda "ruido" existe en el JSON pero NO se pinta.
+const ALTITUD_FUERTE_M = 2500;
+const ALTITUD_MODERADA_M = 1500;
+export const adjuntarAltitud = (analisis, f) => {
+  // Defensa: si el modelo llegara a inventar una altitud_info propia,
+  // aqui muere — la unica que existe es la determinista de abajo.
+  delete analisis.altitud_info;
+  const a = f?.altitud;
+  if (a?.partido_m == null) return analisis;
+  const info = {
+    partido_m: a.partido_m,
+    visitante_origen_m: a.visitante_origen_m ?? null,
+    banda:
+      a.partido_m >= ALTITUD_FUERTE_M ? "fuerte"
+      : a.partido_m >= ALTITUD_MODERADA_M ? "moderada"
+      : "ruido",
+  };
+  if (a.visitante_origen_m != null) info.delta_visitante_m = a.partido_m - a.visitante_origen_m;
+  analisis.altitud_info = info;
   return analisis;
 };
 
