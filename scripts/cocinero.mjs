@@ -17,6 +17,11 @@
 //     (72h, solo lectura del mercado: sin Claude, sin despensa, sin
 //      cuaderno; ignora --dry-run, --max y --fixture; solo pide
 //      API_FOOTBALL_KEY)
+//   node scripts/cocinero.mjs --sembrar-estadios                    sembrador (v2b)
+//     (/teams de las 17 ligas → tablas estadios y equipos_estadio;
+//      JAMAS toca altitud_m; ignora --dry-run, --max y --fixture; exige
+//      API_FOOTBALL_KEY + SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY.
+//      Si va junto a --sonda, gana la sonda y este se ignora con aviso.)
 //
 // Env en ensayo: API_FOOTBALL_KEY (siempre); SUPABASE_URL + una clave
 // (anon o service) para el filtro de despensa — si faltan, despensa
@@ -42,6 +47,10 @@ import {
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry-run");
 const SONDA = args.includes("--sonda");
+// Precedencia si llegan los dos: gana la sonda (solo lectura) y el
+// sembrador se ignora con aviso — el modo que escribe nunca se activa
+// por descuido de marcar dos casillas.
+const SEMBRAR = !SONDA && args.includes("--sembrar-estadios");
 // El || 60 no es adorno: en las corridas por schedule los inputs del
 // workflow llegan vacios y "--max=" parsearia a 0 — cero generaciones.
 const MAX = Number((args.find(a => a.startsWith("--max=")) || "--max=60").slice(6)) || 60;
@@ -53,9 +62,12 @@ const DISPARADOR = (args.find(a => a.startsWith("--disparador=")) || "--disparad
 
 // Primera linea SIEMPRE: el modo resuelto, el tope y quien disparo — para
 // que el registro de una corrida nunca deje dudas de que se ejecuto.
-// La sonda ignora --dry-run, --max y --fixture: no cocina, solo mide.
+// La sonda y el sembrador ignoran --dry-run, --max y --fixture.
 if (SONDA) console.log(`SONDA: solo lectura del mercado | ventana=72h | disparador=${DISPARADOR}`);
+else if (SEMBRAR) console.log(`SEMBRADOR DE ESTADIOS: /teams de las ligas → estadios + equipos_estadio | disparador=${DISPARADOR}`);
 else console.log(`COCINERO — modo=${DRY ? "ENSAYO" : "REAL"} | max=${MAX} | disparador=${DISPARADOR}`);
+if (SONDA && args.includes("--sembrar-estadios"))
+  console.error("(aviso) --sembrar-estadios ignorado: la sonda (solo lectura) tiene precedencia");
 
 // ── Credenciales ──────────────────────────────────────────────────────
 const AF_KEY = process.env.API_FOOTBALL_KEY;
@@ -69,14 +81,16 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || "";
 
 // El modo real gasta dinero: si falta un secreto, se para AQUI con la
 // lista completa, no a mitad de corrida. La sonda no cocina ni escribe:
-// con --sonda basta API_FOOTBALL_KEY y no se exige nada mas.
-if (!DRY && !SONDA) {
+// con --sonda basta API_FOOTBALL_KEY y no se exige nada mas. El sembrador
+// no llama a Claude pero SI escribe en Supabase: exige la service key
+// (y su formato) aunque lleve --dry-run, que ignora.
+if ((!DRY && !SONDA) || SEMBRAR) {
   const faltan = [];
-  if (!ANTHROPIC_KEY) faltan.push("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_KEY && !SEMBRAR) faltan.push("ANTHROPIC_API_KEY");
   if (!SUPA_URL) faltan.push("SUPABASE_URL");
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) faltan.push("SUPABASE_SERVICE_ROLE_KEY");
   if (faltan.length) {
-    console.error(`Modo real: faltan secretos en el entorno: ${faltan.join(", ")}`);
+    console.error(`${SEMBRAR ? "Sembrador" : "Modo real"}: faltan secretos en el entorno: ${faltan.join(", ")}`);
     process.exit(1);
   }
 
@@ -307,6 +321,129 @@ if (SONDA) {
   }
   console.log(`\nPeticiones a API-Football usadas: ${peticionesAF}${errores ? ` | chequeos de cuotas con error (excluidos del %): ${errores}` : ""}`);
   process.exit(0);
+}
+
+// ── Sembrador de estadios (Recetario v2b): /teams → Supabase ──────────
+// Siembra `estadios` y `equipos_estadio` por ids numericos de API-Football,
+// nunca por nombre. JAMAS envia altitud_m: merge-duplicates solo actualiza
+// las columnas presentes en el cuerpo, asi que re-sembrar no pisa las
+// altitudes cargadas a mano. No toca despensa ni cuaderno. La lectura de
+// altitud por el recetario NO va aqui: llegara con receta: 3.
+if (SEMBRAR) {
+  // seasons por fechas reales, el mismo pipeline del cocinero. Toda liga
+  // caida se acumula en ligasCaidas: se restata junto a la lista final y
+  // decide el exit code — un sembrado a cero con check verde en Actions
+  // seria la mentira perfecta.
+  const ligasCaidas = [];
+  const seasons = await enTandas(LIGAS, async (l) => ({ id: l.id, season: await resolverSeason(l.id) }));
+  const conSeason = [];
+  LIGAS.forEach((l, i) => {
+    if (seasons[i]?.season != null) conSeason.push({ ...l, season: seasons[i].season });
+    else {
+      console.error(`(aviso) ${l.nombre}: season irresoluble${seasons[i]?.__error ? ` (${seasons[i].__error})` : ""} — liga omitida`);
+      ligasCaidas.push(`${l.nombre} — season irresoluble`);
+    }
+  });
+
+  const porLiga = await enTandas(conSeason, async (l) => {
+    const d = await af(`/teams?league=${l.id}&season=${l.season}`);
+    return (d.response || []).map((t) => ({ team: t.team, venue: t.venue }));
+  });
+
+  const filasEstadios = new Map(); // venue_id → fila de `estadios`
+  const filasEquipos = [];         // filas de `equipos_estadio`
+  // Dedup por team_id: el orden de LIGAS pone la liga domestica antes que
+  // Libertadores/Sudamericana, asi que liga_id queda el del torneo de casa.
+  const equiposVistos = new Set();
+  const porVenue = new Map();      // venue_id → equipos (para compartidos)
+  const sinVenue = [];
+  const statsLiga = [];
+
+  porLiga.forEach((lote, i) => {
+    const liga = conSeason[i];
+    if (!lote || lote.__error) {
+      console.error(`(aviso) ${liga.nombre}: /teams fallo${lote?.__error ? ` (${lote.__error})` : ""} — liga omitida`);
+      ligasCaidas.push(`${liga.nombre} — /teams fallo`);
+      statsLiga.push({ liga: liga.nombre, error: true });
+      return;
+    }
+    const venues = new Set();
+    let omitidos = 0;
+    for (const { team, venue } of lote) {
+      if (venue?.id == null) { omitidos++; sinVenue.push(`${team?.name ?? "?"} (${liga.nombre})`); continue; }
+      venues.add(venue.id);
+      if (!filasEstadios.has(venue.id))
+        filasEstadios.set(venue.id, { venue_id: venue.id, nombre: venue.name ?? null, ciudad: venue.city ?? null, pais: team?.country ?? null });
+      if (!equiposVistos.has(team.id)) {
+        equiposVistos.add(team.id);
+        filasEquipos.push({ team_id: team.id, equipo: team.name, venue_id: venue.id, liga_id: liga.id });
+        if (!porVenue.has(venue.id)) porVenue.set(venue.id, []);
+        porVenue.get(venue.id).push(team.name);
+      }
+    }
+    statsLiga.push({ liga: liga.nombre, equipos: lote.length, venues: venues.size, sinVenue: omitidos });
+  });
+
+  // Upsert en lote unico por tabla; si Supabase no acepta, se para con el
+  // motivo entero — sembrar a medias dejaria un mapa mentiroso.
+  const upsert = async (tabla, clave, filas) => {
+    if (!filas.length) return;
+    const r = await fetch(`${SUPA_URL}/rest/v1/${tabla}?on_conflict=${clave}`, {
+      method: "POST",
+      headers: { ...cabecerasSupa(SUPA_KEY), "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(filas),
+    });
+    if (!r.ok) {
+      console.error(`Upsert en ${tabla} fallo — Supabase ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      process.exit(1);
+    }
+  };
+  await upsert("estadios", "venue_id", [...filasEstadios.values()]);
+  await upsert("equipos_estadio", "team_id", filasEquipos);
+
+  const ancho = (s, n) => String(s ?? "").slice(0, n).padEnd(n);
+  console.log(`\nSEMBRADOR — equipos guardados=${filasEquipos.length} | estadios distintos=${filasEstadios.size} | equipos sin venue.id=${sinVenue.length}`);
+  console.log(`\n${ancho("liga", 30)} ${ancho("equipos", 8)} ${ancho("estadios", 9)} sin venue.id`);
+  console.log("─".repeat(62));
+  for (const s of statsLiga)
+    console.log(`${ancho(s.liga, 30)} ${ancho(s.error ? "error" : s.equipos, 8)} ${ancho(s.error ? "—" : s.venues, 9)} ${s.error ? "—" : s.sinVenue}`);
+
+  if (sinVenue.length) {
+    console.log(`\nEquipos omitidos por venue.id null (silencio honesto: sin fila, sin invento):`);
+    for (const e of sinVenue) console.log(`  - ${e}`);
+  }
+
+  const compartidos = [...porVenue.entries()].filter(([, eq]) => eq.length > 1);
+  if (compartidos.length) {
+    console.log(`\nEstadios compartidos (mismo venue_id, varios equipos):`);
+    for (const [vid, eq] of compartidos)
+      console.log(`  ${vid} | ${filasEstadios.get(vid)?.nombre} | ${eq.join(", ")}`);
+  }
+
+  // La lista de trabajo manual: los paises con estadios de altura del
+  // roadmap, en tabla limpia para copiar del log y rellenar altitud_m.
+  const normPais = (t) => (t || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const PAISES_ALTURA = new Set(["bolivia", "ecuador", "colombia", "peru", "venezuela", "chile", "argentina"]);
+  const lista = [...filasEstadios.values()]
+    .filter((e) => PAISES_ALTURA.has(normPais(e.pais)))
+    .sort((a, b) => normPais(a.pais).localeCompare(normPais(b.pais)) || normPais(a.nombre).localeCompare(normPais(b.nombre)));
+  console.log(`\nLISTA PARA ALTITUDES (${lista.length} estadios; rellenar altitud_m a mano en Supabase):`);
+  console.log(`${ancho("venue_id", 9)} | ${ancho("nombre", 42)} | ciudad`);
+  let paisActual = "";
+  for (const e of lista) {
+    if (e.pais !== paisActual) { paisActual = e.pais; console.log(`— ${e.pais} —`); }
+    console.log(`${ancho(e.venue_id, 9)} | ${ancho(e.nombre, 42)} | ${e.ciudad ?? ""}`);
+  }
+
+  if (ligasCaidas.length) {
+    console.log(`\nOJO — ligas SIN SEMBRAR en esta corrida (la lista de altitudes puede estar incompleta):`);
+    for (const l of ligasCaidas) console.log(`  - ${l}`);
+  }
+
+  console.log(`\nPeticiones a API-Football usadas: ${peticionesAF}`);
+  // Check verde solo si se sembraron TODAS las ligas; con cualquiera
+  // caida el exit 1 delata la corrida incompleta en Actions.
+  process.exit(ligasCaidas.length ? 1 : 0);
 }
 
 // ── Decidir ───────────────────────────────────────────────────────────
