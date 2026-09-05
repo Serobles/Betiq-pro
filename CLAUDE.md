@@ -49,7 +49,9 @@ finished_at NULL = corrida muerta a medias (timeout/crash). Sin filas nuevas en 
 
 **Trampa de la cola del schedule:** el schedule de GitHub dispara siempre, pero con 2-5h de cola (medido 1-3 sep 2026). No es un crash y pagar no lo quita; lo que importa es el espacio real entre corridas (~6-8h con retraso incluido) — la ventana del cocinero (32h) está dimensionada contando ese retraso.
 
-**Cobertura Bet365/Betano (sonda 3-sep-2026):** Europa 100% con cuotas incluso a 72h; Sudamérica ~90% a 24-72h; Venezuela 0/5 — posible falta de cobertura de las dos casas, pendiente confirmar con una segunda sonda antes de sacar conclusiones.
+**Cobertura Bet365/Betano (sondas 3-sep y 5-sep-2026, veredicto cerrado):** la cobertura es intermitente POR JORNADA, no por liga — Venezuela entre semana 0/5 sin línea jamás y el mismo torneo en finde 7/7. No es bug ni decisión pendiente: la doble compuerta lo absorbe sola (sin cuotas reales no se genera ni se guarda). Datos generales: Europa 100% con cuotas hasta 72h; Sudamérica ~90-95% dentro de 48h; ventana de 32h validada dos veces.
+
+**Trampa del límite por minuto:** el plan Pro de API-Football corta a 300 req/min ADEMÁS del cupo diario. "Too many requests per minute" con la llave correcta = ritmo propio demasiado rápido (5-sep: 136 peticiones en ~12s tumbaron 5; mitigado con PAUSA_MS=1000 en enTandas del cocinero, ~240 req/min sostenidos). No confundirla con la trampa de la llave equivocada en Vercel: mismo texto de error, causa distinta — esta se arregla bajando el ritmo, aquella corrigiendo la variable de entorno. api/football.js las clasifica igual (TIPOS.LIMITE, en clasificar), así que el mensaje no distingue: hay que mirar cuál fue la causa.
 
 **Optimización futura de costo:** la Batch API de Anthropic (−50% por token, latencia de horas) es ideal para el cocinero — un pre-caché no tiene prisa. Cuando el volumen crezca (Europa en sábado), migrar llamarClaude() a batches.
 
