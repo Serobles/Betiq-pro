@@ -111,7 +111,8 @@ const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 // Mismo patron medido del resto de la app: la API corta rafagas de mas
 // de 4 peticiones simultaneas aunque sobre cuota.
 const TANDA = 4;
-const PAUSA_MS = 250;
+// 1s entre tandas de 4 = ~240 req/min sostenidos: el plan Pro corta a 300/min (sonda del 5-sep: 136 req en ~12s tumbaron 5).
+const PAUSA_MS = 1000;
 const enTandas = async (items, fn) => {
   const res = [];
   for (let i = 0; i < items.length; i += TANDA) {
