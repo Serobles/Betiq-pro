@@ -471,6 +471,7 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
   // y pareceria que ese dia no tienen partidos.
   const [ligasCaidas, setLigasCaidas] = useState([]);
   const pestanaActiva = useRef(null);
+  const tarjetaCal = useRef(null);
   const [zona, setZona] = useState(ZONA_NAVEGADOR);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
@@ -545,12 +546,9 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
   }, [dias, objetivoScroll]);
 
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, color: C.accent }}>📅 Calendario de partidos</div>
-        <div style={{ fontSize: 11, color: C.dim }}>Hora local · {zona}</div>
-      </div>
-
+    <div ref={tarjetaCal} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: "24px", marginBottom: 24 }}>
+      {/* Los avisos van ARRIBA del bloque anclado a proposito: si
+          viajaran dentro, quedarian pegados a la pantalla todo el scroll. */}
       {cargando && <div style={{ fontSize: 13, color: C.muted }}>Cargando partidos...</div>}
 
       {!cargando && error && (
@@ -573,75 +571,108 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
         </div>
       )}
 
+      {/* Bloque ANCLADO: titulo + pestañas de dia quedan a la vista al
+          bajar por el calendario, en desktop y movil. Fondo de tarjeta
+          para que los partidos pasen por debajo sin transparentarse; el
+          margen negativo compensa el padding de 24 y cubre el ancho
+          completo; el padding-top evita que asome nada por la rendija
+          superior al anclar. El borderBottom de .cal-dias hace de
+          separador del bloque. Ancla contra el viewport porque el root
+          usa overflowX clip (no hidden), y deja de anclar solo donde
+          termina la tarjeta del calendario. */}
+      <div style={{ position: "sticky", top: 0, zIndex: 20, background: C.card, margin: "0 -24px", padding: "8px 24px 0" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 18, flexWrap: "wrap", gap: 8 }}>
+          <div style={{ fontWeight: 700, fontSize: 14, color: C.accent }}>📅 Calendario de partidos</div>
+          <div style={{ fontSize: 11, color: C.dim }}>Hora local · {zona}</div>
+        </div>
+
+        {!cargando && !error && dias && (
+          <>
+            {/* Fila de dias. Se desliza a lo ancho: en un telefono las 5
+                pestanas no caben, y comprimirlas las dejaria ilegibles. */}
+            {/* Las medidas van en CSS y no inline porque cambian por ancho de
+                pantalla: amplias en escritorio, contenidas en movil para que la
+                fila siga deslizandose. El centrado es con margin:auto en los
+                extremos, no con justify-content:center — ese recorta el borde
+                izquierdo cuando la fila desborda y las primeras pestanas quedan
+                inalcanzables. margin:auto centra cuando sobra sitio y se anula
+                solo al desbordar. Su overflowX auto es del propio elemento:
+                no afecta al sticky del contenedor. */}
+            <style>{`
+              .cal-dias::-webkit-scrollbar { display: none; }
+              .cal-dias .cal-dia:first-child { margin-left: auto; }
+              .cal-dias .cal-dia:last-child { margin-right: auto; }
+              .cal-dia { min-width: 84px; padding: 9px 12px; }
+              .cal-dia-nombre { font-size: 12px; }
+              .cal-dia-fecha { font-size: 13px; }
+              @media (min-width: 768px) {
+                .cal-dia { min-width: 112px; padding: 12px 18px; }
+                .cal-dia-nombre { font-size: 13px; }
+                .cal-dia-fecha { font-size: 15px; }
+              }
+            `}</style>
+            <div
+              className="cal-dias"
+              style={{
+                display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none",
+                WebkitOverflowScrolling: "touch",
+                borderBottom: `1px solid ${C.border}`,
+                paddingBottom: 10, marginBottom: 14,
+              }}
+            >
+              {dias.map((d, i) => {
+                const activa = i === diaSel;
+                const hoy = i === 2;
+                return (
+                  <button
+                    key={d.fecha}
+                    ref={activa ? pestanaActiva : null}
+                    onClick={() => {
+                      onDiaSel(i);
+                      // Cambiar de dia desde la barra ANCLADA (scroll
+                      // profundo) vuelve al inicio del calendario: sin
+                      // esto se aterriza a mitad de la lista del dia
+                      // nuevo, o en el fondo si es mas corta. Cerca del
+                      // inicio (top >= 0) no se salta: no molesta.
+                      const t = tarjetaCal.current;
+                      if (t && t.getBoundingClientRect().top < 0) t.scrollIntoView({ block: "start" });
+                    }}
+                    className="cal-dia"
+                    style={{
+                      flex: "0 0 auto",
+                      display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
+                      borderRadius: 9, cursor: "pointer",
+                      background: activa ? "linear-gradient(135deg,#16a34a,#22c55e)" : C.card2,
+                      border: `1px solid ${activa ? "#22c55e" : C.border}`,
+                      color: activa ? "#fff" : C.muted,
+                    }}
+                  >
+                    <span className="cal-dia-nombre" style={{ fontWeight: 800, letterSpacing: ".04em", whiteSpace: "nowrap" }}>
+                      {hoy ? "HOY" : diaCorto(d.fecha)}
+                    </span>
+                    <span className="cal-dia-fecha" style={{ fontWeight: 600, whiteSpace: "nowrap", opacity: activa ? 0.95 : 0.8 }}>
+                      {fechaCorta(d.fecha)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
+      </div>
+
       {!cargando && !error && dias && (
         <>
-          {/* Fila de dias. Se desliza a lo ancho: en un telefono las 5
-              pestanas no caben, y comprimirlas las dejaria ilegibles. */}
-          {/* Las medidas van en CSS y no inline porque cambian por ancho de
-              pantalla: amplias en escritorio, contenidas en movil para que la
-              fila siga deslizandose. El centrado es con margin:auto en los
-              extremos, no con justify-content:center — ese recorta el borde
-              izquierdo cuando la fila desborda y las primeras pestanas quedan
-              inalcanzables. margin:auto centra cuando sobra sitio y se anula
-              solo al desbordar. */}
-          <style>{`
-            .cal-dias::-webkit-scrollbar { display: none; }
-            .cal-dias .cal-dia:first-child { margin-left: auto; }
-            .cal-dias .cal-dia:last-child { margin-right: auto; }
-            .cal-dia { min-width: 84px; padding: 9px 12px; }
-            .cal-dia-nombre { font-size: 12px; }
-            .cal-dia-fecha { font-size: 13px; }
-            @media (min-width: 768px) {
-              .cal-dia { min-width: 112px; padding: 12px 18px; }
-              .cal-dia-nombre { font-size: 13px; }
-              .cal-dia-fecha { font-size: 15px; }
-            }
-          `}</style>
-          <div
-            className="cal-dias"
-            style={{
-              display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none",
-              WebkitOverflowScrolling: "touch",
-              borderBottom: `1px solid ${C.border}`,
-              paddingBottom: 10, marginBottom: 14,
-            }}
-          >
-            {dias.map((d, i) => {
-              const activa = i === diaSel;
-              const hoy = i === 2;
-              return (
-                <button
-                  key={d.fecha}
-                  ref={activa ? pestanaActiva : null}
-                  onClick={() => onDiaSel(i)}
-                  className="cal-dia"
-                  style={{
-                    flex: "0 0 auto",
-                    display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-                    borderRadius: 9, cursor: "pointer",
-                    background: activa ? "linear-gradient(135deg,#16a34a,#22c55e)" : C.card2,
-                    border: `1px solid ${activa ? "#22c55e" : C.border}`,
-                    color: activa ? "#fff" : C.muted,
-                  }}
-                >
-                  <span className="cal-dia-nombre" style={{ fontWeight: 800, letterSpacing: ".04em", whiteSpace: "nowrap" }}>
-                    {hoy ? "HOY" : diaCorto(d.fecha)}
-                  </span>
-                  <span className="cal-dia-fecha" style={{ fontWeight: 600, whiteSpace: "nowrap", opacity: activa ? 0.95 : 0.8 }}>
-                    {fechaCorta(d.fecha)}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
           {/* Solo el dia elegido. El agrupado por liga y las tarjetas no
               cambian: lo unico nuevo es que se filtra a un dia a la vez. */}
           {visible && visible.ligas.length === 0 ? (
             <div style={{ fontSize: 12, color: C.dim, padding: "6px 2px" }}>No hay partidos</div>
           ) : (
             (visible?.ligas || []).map((g) => (
-              <div key={g.liga} id={`liga-${slugLiga(g.liga)}`} style={{ marginBottom: 10 }}>
+              // scrollMarginTop ≈ alto del bloque anclado: sin el, el salto
+              // a una liga (scrollIntoView block start) aterrizaria con la
+              // cabecera de la liga TAPADA por la barra fija.
+              <div key={g.liga} id={`liga-${slugLiga(g.liga)}`} style={{ marginBottom: 10, scrollMarginTop: 130 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: C.blue, padding: "4px 2px" }}>{g.liga}</div>
                 {g.partidos.map((p) => (
                   <PartidoFila
@@ -1506,8 +1537,12 @@ export default function BetFutProV3() {
   // un mercado del Top 3 jamas vuelve a aparecer abajo.
   const otros = data?.mercados_analizados?.filter(m => m.ranking > 3) || [];
 
+  // overflowX clip y NO hidden en el root: hidden lo convierte en scroll
+  // container y mata el position sticky de todos los descendientes
+  // (calendario y panel de ligas); clip recorta el desborde igual sin
+  // crear scroll container, y el sticky ancla contra el viewport.
   return (
-    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','Segoe UI',sans-serif", paddingBottom: 60, overflowX: "hidden" }}>
+    <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','Segoe UI',sans-serif", paddingBottom: 60, overflowX: "clip" }}>
 
       {/* HEADER */}
       <div style={{ background: `linear-gradient(135deg, #0d1b2a 0%, #162436 60%, #1c2e44 100%)`, borderBottom: `1px solid ${C.border}`, padding: "18px 24px 14px" }}>
