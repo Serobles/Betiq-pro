@@ -17,6 +17,11 @@
 //     (72h, solo lectura del mercado: sin Claude, sin despensa, sin
 //      cuaderno; ignora --dry-run, --max y --fixture; solo pide
 //      API_FOOTBALL_KEY)
+//   node scripts/cocinero.mjs --sonda-arbitros                      sonda de arbitros (v2c, paso 0)
+//     (disponibilidad de fixture.referee: futuros a 72h por bucket +
+//      historico de 30 dias con nombres distintos y literales crudos;
+//      solo lectura; ignora --dry-run, --max y --fixture; solo pide
+//      API_FOOTBALL_KEY)
 //   node scripts/cocinero.mjs --sembrar-estadios                    sembrador (v2b)
 //     (/teams de las 17 ligas → tablas estadios y equipos_estadio;
 //      JAMAS toca altitud_m; ignora --dry-run, --max y --fixture; exige
@@ -49,10 +54,12 @@ import {
 const args = process.argv.slice(2);
 const DRY = args.includes("--dry-run");
 const SONDA = args.includes("--sonda");
-// Precedencia si llegan los dos: gana la sonda (solo lectura) y el
-// sembrador se ignora con aviso — el modo que escribe nunca se activa
-// por descuido de marcar dos casillas.
-const SEMBRAR = !SONDA && args.includes("--sembrar-estadios");
+// Precedencia entre casillas: --sonda > --sonda-arbitros >
+// --sembrar-estadios. Entre dos modos de solo lectura gana el existente;
+// cualquier sonda gana al que escribe — el modo que escribe nunca se
+// activa por descuido de marcar dos casillas. El ignorado avisa.
+const SONDA_ARBITROS = !SONDA && args.includes("--sonda-arbitros");
+const SEMBRAR = !SONDA && !SONDA_ARBITROS && args.includes("--sembrar-estadios");
 // El || 60 no es adorno: en las corridas por schedule los inputs del
 // workflow llegan vacios y "--max=" parsearia a 0 — cero generaciones.
 const MAX = Number((args.find(a => a.startsWith("--max=")) || "--max=60").slice(6)) || 60;
@@ -64,12 +71,15 @@ const DISPARADOR = (args.find(a => a.startsWith("--disparador=")) || "--disparad
 
 // Primera linea SIEMPRE: el modo resuelto, el tope y quien disparo — para
 // que el registro de una corrida nunca deje dudas de que se ejecuto.
-// La sonda y el sembrador ignoran --dry-run, --max y --fixture.
+// Las sondas y el sembrador ignoran --dry-run, --max y --fixture.
 if (SONDA) console.log(`SONDA: solo lectura del mercado | ventana=72h | disparador=${DISPARADOR}`);
+else if (SONDA_ARBITROS) console.log(`SONDA ARBITROS: disponibilidad de referee | futuros 72h + histórico 30d | disparador=${DISPARADOR}`);
 else if (SEMBRAR) console.log(`SEMBRADOR DE ESTADIOS: /teams de las ligas → estadios + equipos_estadio | disparador=${DISPARADOR}`);
 else console.log(`COCINERO — modo=${DRY ? "ENSAYO" : "REAL"} | max=${MAX} | disparador=${DISPARADOR}`);
-if (SONDA && args.includes("--sembrar-estadios"))
-  console.error("(aviso) --sembrar-estadios ignorado: la sonda (solo lectura) tiene precedencia");
+if (SONDA && args.includes("--sonda-arbitros"))
+  console.error("(aviso) --sonda-arbitros ignorado: la sonda de cuotas tiene precedencia");
+if ((SONDA || SONDA_ARBITROS) && args.includes("--sembrar-estadios"))
+  console.error(`(aviso) --sembrar-estadios ignorado: ${SONDA ? "la sonda de cuotas" : "la sonda de arbitros"} (solo lectura) tiene precedencia`);
 
 // ── Credenciales ──────────────────────────────────────────────────────
 const AF_KEY = process.env.API_FOOTBALL_KEY;
@@ -82,11 +92,11 @@ const SUPA_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_A
 const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || "";
 
 // El modo real gasta dinero: si falta un secreto, se para AQUI con la
-// lista completa, no a mitad de corrida. La sonda no cocina ni escribe:
-// con --sonda basta API_FOOTBALL_KEY y no se exige nada mas. El sembrador
-// no llama a Claude pero SI escribe en Supabase: exige la service key
-// (y su formato) aunque lleve --dry-run, que ignora.
-if ((!DRY && !SONDA) || SEMBRAR) {
+// lista completa, no a mitad de corrida. Las sondas no cocinan ni
+// escriben: con --sonda o --sonda-arbitros basta API_FOOTBALL_KEY. El
+// sembrador no llama a Claude pero SI escribe en Supabase: exige la
+// service key (y su formato) aunque lleve --dry-run, que ignora.
+if ((!DRY && !SONDA && !SONDA_ARBITROS) || SEMBRAR) {
   const faltan = [];
   if (!ANTHROPIC_KEY && !SEMBRAR) faltan.push("ANTHROPIC_API_KEY");
   if (!SUPA_URL) faltan.push("SUPABASE_URL");
@@ -323,6 +333,114 @@ if (SONDA) {
   }
   console.log(`\nPeticiones a API-Football usadas: ${peticionesAF}${errores ? ` | chequeos de cuotas con error (excluidos del %): ${errores}` : ""}`);
   process.exit(0);
+}
+
+// ── Sonda de arbitros (Recetario v2c, paso 0): ¿el dato existe? ───────
+// Mide la disponibilidad REAL de fixture.referee antes de diseñar la
+// tabla arbitros: futuros a 72h (¿cuando se confirma el nombre?) e
+// historico de 30 dias (¿cuan poblado viene y cuantos nombres distintos?).
+// Solo lectura de API-Football: cero Claude, cero escrituras, cero
+// cuaderno. Los literales se imprimen crudos (JSON.stringify) para
+// diseñar la normalizacion del texto libre con ejemplos reales.
+if (SONDA_ARBITROS) {
+  const BUCKETS = ["0-24h", "24-48h", "48-72h"];
+  const bucketDe = (ts) => BUCKETS[Math.min(2, Math.floor((ts - ahoraS) / 86400))];
+  const JUGADO = new Set(["FT", "AET", "PEN"]);
+  const conReferee = (f) => typeof f.fixture?.referee === "string" && f.fixture.referee.trim() !== "";
+
+  const ligasCaidas = [];
+  const seasons = await enTandas(LIGAS, async (l) => ({ id: l.id, season: await resolverSeason(l.id) }));
+  const conSeason = [];
+  LIGAS.forEach((l, i) => {
+    if (seasons[i]?.season != null) conSeason.push({ ...l, season: seasons[i].season });
+    else {
+      console.error(`(aviso) ${l.nombre}: season irresoluble${seasons[i]?.__error ? ` (${seasons[i].__error})` : ""} — liga omitida`);
+      ligasCaidas.push(`${l.nombre} — season irresoluble`);
+    }
+  });
+
+  const fechaDe = (s) => new Date(s * 1000).toISOString().slice(0, 10);
+  const hoy = fechaDe(ahoraS);
+  const pedirVentana = (l, desde, hasta) =>
+    af(`/fixtures?league=${l.id}&season=${l.season}&from=${desde}&to=${hasta}&timezone=UTC`)
+      .then((d) => d.response || []);
+
+  const futuros = await enTandas(conSeason, (l) => pedirVentana(l, hoy, fechaDe(hastaSondaS)));
+  const historico = await enTandas(conSeason, (l) => pedirVentana(l, fechaDe(ahoraS - 30 * 86400), hoy));
+
+  // (a) Futuros: NS por timestamp, liga x bucket "con referee / total (%)"
+  const filasNS = [];
+  futuros.forEach((lote, i) => {
+    const liga = conSeason[i];
+    if (!lote || lote.__error) {
+      ligasCaidas.push(`${liga.nombre} — futuros: ${lote?.__error || "sin respuesta"}`);
+      return;
+    }
+    for (const f of lote) {
+      const ts = f.fixture?.timestamp || 0;
+      if (f.fixture?.status?.short !== "NS" || ts < ahoraS || ts > hastaSondaS) continue;
+      filasNS.push({ liga: liga.nombre, bucket: bucketDe(ts), con: conReferee(f) });
+    }
+  });
+
+  const ancho = (s, n) => String(s ?? "").slice(0, n).padEnd(n);
+  const celda = (xs) => {
+    if (!xs.length) return "—";
+    const con = xs.filter((x) => x.con).length;
+    return `${con}/${xs.length} (${Math.round((con / xs.length) * 100)}%)`;
+  };
+  console.log(`\nFuturos a 72h — fixtures NS con referee poblado:`);
+  console.log(`${ancho("", 30)} ${BUCKETS.map((b) => ancho(b, 18)).join(" ")} ${ancho("total", 18)}`);
+  console.log("─".repeat(108));
+  for (const l of conSeason) {
+    const xs = filasNS.filter((x) => x.liga === l.nombre);
+    const porBucket = BUCKETS.map((b) => ancho(celda(xs.filter((x) => x.bucket === b)), 18));
+    console.log(`${ancho(l.nombre, 30)} ${porBucket.join(" ")} ${ancho(celda(xs), 18)}`);
+  }
+
+  // (b) Historico 30d: % poblado + nombres distintos (solo trim, sin
+  // normalizar — el conteo dimensiona la futura tabla arbitros).
+  // (c) De paso se guardan hasta 3 literales CRUDOS por liga (sin trim:
+  // JSON.stringify delata espacios, comas y acentos tal como llegan).
+  console.log(`\nHistorico 30 dias (${fechaDe(ahoraS - 30 * 86400)} → ${hoy}) — partidos jugados (FT/AET/PEN):`);
+  console.log(`${ancho("", 30)} ${ancho("jugados", 8)} ${ancho("con referee", 18)} nombres distintos`);
+  console.log("─".repeat(80));
+  const muestras = new Map();
+  historico.forEach((lote, i) => {
+    const liga = conSeason[i];
+    if (!lote || lote.__error) {
+      ligasCaidas.push(`${liga.nombre} — historico: ${lote?.__error || "sin respuesta"}`);
+      console.log(`${ancho(liga.nombre, 30)} ${ancho("error", 8)} ${ancho("—", 18)} —`);
+      return;
+    }
+    const jugados = lote.filter((f) => JUGADO.has(f.fixture?.status?.short));
+    const nombres = new Set(jugados.filter(conReferee).map((f) => f.fixture.referee.trim()));
+    const crudos = [];
+    for (const f of jugados) {
+      const r = f.fixture?.referee;
+      if (typeof r === "string" && r.trim() && !crudos.includes(r)) {
+        crudos.push(r);
+        if (crudos.length === 3) break;
+      }
+    }
+    muestras.set(liga.nombre, crudos);
+    console.log(`${ancho(liga.nombre, 30)} ${ancho(jugados.length, 8)} ${ancho(celda(jugados.map((f) => ({ con: conReferee(f) }))), 18)} ${nombres.size}`);
+  });
+
+  console.log(`\nMuestra de literales crudos de referee (hasta 3 por liga, tal como llegan):`);
+  for (const [liga, vals] of muestras) {
+    if (!vals.length) continue;
+    console.log(`  ${liga}:`);
+    for (const v of vals) console.log(`    ${JSON.stringify(v)}`);
+  }
+
+  if (ligasCaidas.length) {
+    console.log(`\nOJO — ligas sin datos en esta corrida (sus filas no significan "sin arbitros"):`);
+    for (const l of ligasCaidas) console.log(`  - ${l}`);
+  }
+  console.log(`\nPeticiones a API-Football usadas: ${peticionesAF}`);
+  // Patron del sembrador: check verde solo con las 17 ligas medidas.
+  process.exit(ligasCaidas.length ? 1 : 0);
 }
 
 // ── Sembrador de estadios (Recetario v2b): /teams → Supabase ──────────

@@ -27,6 +27,10 @@ on:
         description: "Sonda de cuotas (72h, solo lectura del mercado)"
         type: boolean
         default: false
+      sonda_arbitros:
+        description: "Sonda de árbitros (disponibilidad de referee: futuros 72h + histórico 30d)"
+        type: boolean
+        default: false
       sembrar:
         description: "Sembrar estadios (/teams → estadios + equipos_estadio; jamás toca altitud_m)"
         type: boolean
@@ -61,11 +65,12 @@ jobs:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        # Doble defensa del modo, como la del max: --dry-run, --sonda y
-        # --sembrar-estadios SOLO cuando el disparo es manual Y el boton lo
-        # pide; un schedule (inputs vacios) resuelve a REAL por construccion,
-        # no por accidente de un string vacio. Si sonda y sembrar van
-        # marcadas a la vez, el script da precedencia a la sonda (solo
-        # lectura) e ignora el sembrador con aviso. El script imprime el
-        # modo resuelto en su primera linea.
-        run: node scripts/cocinero.mjs ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true && '--dry-run' || '' }} ${{ github.event_name == 'workflow_dispatch' && inputs.sonda == true && '--sonda' || '' }} ${{ github.event_name == 'workflow_dispatch' && inputs.sembrar == true && '--sembrar-estadios' || '' }} --max=${{ inputs.max || '60' }} --disparador=${{ github.event_name }}
+        # Doble defensa del modo, como la del max: los flags de modo SOLO
+        # cuando el disparo es manual Y el boton lo pide; un schedule
+        # (inputs vacios) resuelve a REAL por construccion, no por accidente
+        # de un string vacio. Precedencia con varias casillas marcadas:
+        # sonda > sonda_arbitros > sembrar (entre modos de solo lectura gana
+        # el existente; cualquier sonda gana al que escribe; dry_run solo
+        # aplica al cocinero). El ignorado avisa por consola y el script
+        # imprime el modo resuelto en su primera linea.
+        run: node scripts/cocinero.mjs ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run == true && '--dry-run' || '' }} ${{ github.event_name == 'workflow_dispatch' && inputs.sonda == true && '--sonda' || '' }} ${{ github.event_name == 'workflow_dispatch' && inputs.sonda_arbitros == true && '--sonda-arbitros' || '' }} ${{ github.event_name == 'workflow_dispatch' && inputs.sembrar == true && '--sembrar-estadios' || '' }} --max=${{ inputs.max || '60' }} --disparador=${{ github.event_name }}
