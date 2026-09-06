@@ -254,9 +254,87 @@ export const normalizarAnalisis = (parsed) => {
 };
 
 // Version del recetario (roadmap 1d): sube cuando cambia la receta del
-// JSON. Historia: 2 = tabla_cabecera (3-sep), 3 = altitud (5-sep). Los
-// analisis viejos conservan la suya y no se migran.
-export const RECETA_VERSION = 3;
+// JSON. Historia: 2 = tabla_cabecera (3-sep), 3 = altitud (5-sep),
+// 4 = ranking determinista de mercados (6-sep). Los analisis viejos
+// conservan la suya y no se migran.
+export const RECETA_VERSION = 4;
+
+// ── Orden determinista de mercados (receta 4) ─────────────────────────
+// La IA rellena ev, ranking y top_apuesta como tres verdades sueltas y a
+// veces se contradicen (visto en produccion: hero con EV +13% y "MEJOR
+// VALOR" con EV -4%). Aqui manda el numero: el ranking se re-deriva del
+// ev (desempate: nivel_confianza, luego prob_real; null al final) y el
+// hero se reconstruye del ranking 1 — la caja pisa a la IA, sin reeducar
+// el prompt. Muta analisis. Idempotente: re-ejecutar no cambia nada
+// (sort estable + claves identicas).
+// Regla de producto: el #1 exige cuota >= 1.40 (la misma regla que ya se
+// le pide al modelo); un mercado con cuota menor conserva su lugar por
+// EV pero jamas es #1. Si NINGUNO cumple, se respeta el orden por EV.
+const CUOTA_MINIMA_1 = 1.40;
+// Bandas de riesgo del hero por nivel_confianza: >=70 BAJO, >=55 MEDIO,
+// resto (o sin dato) ALTO.
+const CONFIANZA_RIESGO_BAJO = 70;
+const CONFIANZA_RIESGO_MEDIO = 55;
+export const ordenarMercados = (analisis) => {
+  const ms = analisis.mercados_analizados;
+  if (!Array.isArray(ms) || !ms.length) return analisis;
+
+  // a) Saneo numerico: el orden y la UI solo confian en numeros reales.
+  const num = (v) => {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  for (const m of ms) {
+    m.ev = num(m.ev);
+    m.prob_real = num(m.prob_real);
+    m.prob_implicita = num(m.prob_implicita);
+    m.nivel_confianza = num(m.nivel_confianza);
+    m.cuota = num(m.cuota);
+  }
+
+  // b) Ranking re-derivado: ev desc, luego confianza desc, luego prob desc.
+  const orden = ms.slice().sort((a, b) => {
+    for (const campo of ["ev", "nivel_confianza", "prob_real"]) {
+      const va = a[campo], vb = b[campo];
+      if (va == null && vb == null) continue;
+      if (va == null) return 1;
+      if (vb == null) return -1;
+      if (va !== vb) return vb - va;
+    }
+    return 0;
+  });
+  const i1 = orden.findIndex((m) => m.cuota != null && m.cuota >= CUOTA_MINIMA_1);
+  if (i1 > 0) orden.unshift(orden.splice(i1, 1)[0]);
+  // recomendado tambien se re-deriva (decidido 6-sep): top 3 con EV
+  // positivo — el resaltado y el verde del grafico siguen al ranking de
+  // la caja, y un top3 de EV negativo no se viste de recomendado.
+  orden.forEach((m, i) => {
+    m.ranking = i + 1;
+    m.recomendado = i < 3 && m.ev != null && m.ev > 0;
+  });
+
+  // c) Coherencia del hero: top_apuesta SIEMPRE es el mercado ranking 1.
+  const m1 = orden[0];
+  if (analisis.top_apuesta?.nombre !== m1.nombre) {
+    analisis.top_apuesta = {
+      nombre: m1.nombre,
+      descripcion: m1.descripcion,
+      cuota: m1.cuota,
+      cuota_fuente: m1.cuota_fuente,
+      prob_real: m1.prob_real,
+      prob_implicita: m1.prob_implicita,
+      ev: m1.ev,
+      nivel_confianza: m1.nivel_confianza,
+      nivel_riesgo:
+        m1.nivel_confianza != null && m1.nivel_confianza >= CONFIANZA_RIESGO_BAJO ? "BAJO"
+        : m1.nivel_confianza != null && m1.nivel_confianza >= CONFIANZA_RIESGO_MEDIO ? "MEDIO"
+        : "ALTO",
+      razon_ejecutiva: m1.razon || "",
+    };
+  }
+  return analisis;
+};
 
 // ── Linea fija de tabla en la cabecera (Recetario v2a) ────────────────
 // Determinista desde el payload de football.js (posicion_local/visitante

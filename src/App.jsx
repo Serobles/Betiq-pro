@@ -3,7 +3,7 @@ import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, getCac
 // Logica pura del analisis (prompt, searchData, parseo, normalizacion,
 // posts): compartida con el cron via api/_analysis.js para que ambos
 // produzcan EXACTAMENTE el mismo JSON cacheado.
-import { SYSTEM_PROMPT, construirSearchData, searchDataSinDatos, construirMensajeUsuario, parsearRespuestaAnalisis, normalizarAnalisis, adjuntarTabla, adjuntarAltitud, adjuntarPosts } from "../api/_analysis.js";
+import { SYSTEM_PROMPT, construirSearchData, searchDataSinDatos, construirMensajeUsuario, parsearRespuestaAnalisis, normalizarAnalisis, ordenarMercados, adjuntarTabla, adjuntarAltitud, adjuntarPosts } from "../api/_analysis.js";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -87,6 +87,11 @@ const calcStake = (ev, confianza) => {
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
 
+// Receta 4: tras el saneo numerico del recetario un campo puede venir
+// null — se pinta "—" en vez de "undefined%".
+const pct = (v) => (v == null ? "—" : `${v}%`);
+const evPct = (v, dec = 1) => (v == null ? "—" : `+${(v * 100).toFixed(dec)}%`);
+
 function Badge({ children, color = C.accent, size = "sm" }) {
   return (
     <span style={{
@@ -104,14 +109,16 @@ function RiskBadge({ risk }) {
 }
 
 function EVBar({ ev }) {
-  const pct = Math.min(Math.max(ev * 100, 0), 30);
+  // Receta 4: ev puede venir null tras el saneo — barra vacia y "—", no
+  // un "+0.0%" fabricado (null * 100 === 0).
+  const pct = ev == null ? 0 : Math.min(Math.max(ev * 100, 0), 30);
   const color = ev > 0.1 ? C.green : ev > 0.05 ? C.accent : C.muted;
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
       <div style={{ flex: 1, height: 6, background: C.border, borderRadius: 3, overflow: "hidden" }}>
         <div style={{ height: "100%", width: `${(pct / 30) * 100}%`, background: color, borderRadius: 3, transition: "width .5s" }} />
       </div>
-      <span style={{ fontSize: 12, fontWeight: 700, color, minWidth: 44 }}>+{(ev * 100).toFixed(1)}%</span>
+      <span style={{ fontSize: 12, fontWeight: 700, color, minWidth: 44 }}>{ev == null ? "—" : `+${(ev * 100).toFixed(1)}%`}</span>
     </div>
   );
 }
@@ -156,9 +163,9 @@ function MercadoCard({ m, partido, rank, bank = 0, onGuardar, guardadoId }) {
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
         {[
-          { l: "Prob. real", v: `${m.prob_real}%`, c: C.green },
-          { l: "Prob. implícita", v: `${m.prob_implicita}%`, c: C.muted },
-          { l: "Confianza", v: `${m.nivel_confianza}%`, c: C.blue },
+          { l: "Prob. real", v: pct(m.prob_real), c: C.green },
+          { l: "Prob. implícita", v: pct(m.prob_implicita), c: C.muted },
+          { l: "Confianza", v: pct(m.nivel_confianza), c: C.blue },
         ].map(({ l, v, c }) => (
           <div key={l} style={{ background: C.card3, borderRadius: 7, padding: "8px", textAlign: "center" }}>
             <div style={{ fontSize: 15, fontWeight: 700, color: c }}>{v}</div>
@@ -1385,6 +1392,7 @@ export default function BetFutProV3() {
       // genere, porque el cache-hit lo pinta tal cual sin volver a normalizar.
       const parsed = parsearRespuestaAnalisis(jsonRaw);
       normalizarAnalisis(parsed);
+      ordenarMercados(parsed);
       adjuntarTabla(parsed, footballData);
       adjuntarAltitud(parsed, footballData);
       const { bL, bV, pr } = adjuntarPosts(parsed);
@@ -1494,7 +1502,9 @@ export default function BetFutProV3() {
   };
 
   const top3 = data?.mercados_analizados?.slice().sort((a, b) => a.ranking - b.ranking).slice(0, 3) || [];
-  const otros = data?.mercados_analizados?.filter(m => !m.recomendado) || [];
+  // Receta 4: "otros" es el resto del ranking, no los no-recomendados —
+  // un mercado del Top 3 jamas vuelve a aparecer abajo.
+  const otros = data?.mercados_analizados?.filter(m => m.ranking > 3) || [];
 
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text, fontFamily: "'Inter','Segoe UI',sans-serif", paddingBottom: 60, overflowX: "hidden" }}>
@@ -1833,15 +1843,18 @@ export default function BetFutProV3() {
                     <RiskBadge risk={data.top_apuesta?.nivel_riesgo} />
                     <Badge color={data.top_apuesta?.cuota_fuente?.includes("Bet365") ? C.blue : C.muted}>{data.top_apuesta?.cuota_fuente}</Badge>
                   </div>
-                  <div style={{ fontWeight: 900, fontSize: 20, color: C.green, marginBottom: 4 }}>{data.top_apuesta?.mercado}</div>
+                  {/* El esquema emite `nombre` desde el 19-ago; `mercado` solo
+                      existe en JSONs legado — sin el fallback, el titular del
+                      hero llevaba meses vacio. */}
+                  <div style={{ fontWeight: 900, fontSize: 20, color: C.green, marginBottom: 4 }}>{data.top_apuesta?.mercado || data.top_apuesta?.nombre}</div>
                   <div style={{ fontSize: 14, color: C.muted, marginBottom: 16 }}>{data.top_apuesta?.descripcion}</div>
                   <div style={{ fontStyle: "italic", fontSize: 13, color: C.dim, marginBottom: 20, lineHeight: 1.6 }}>{data.top_apuesta?.razon_ejecutiva}</div>
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
                     {[
                       { l: "Cuota", v: `x${data.top_apuesta?.cuota?.toFixed(2)}`, c: C.accent },
-                      { l: "Prob. real", v: `${data.top_apuesta?.prob_real}%`, c: C.green },
-                      { l: "Confianza", v: `${data.top_apuesta?.nivel_confianza}%`, c: C.blue },
-                      { l: "Valor (EV)", v: `+${((data.top_apuesta?.ev || 0) * 100).toFixed(1)}%`, c: C.purple },
+                      { l: "Prob. real", v: pct(data.top_apuesta?.prob_real), c: C.green },
+                      { l: "Confianza", v: pct(data.top_apuesta?.nivel_confianza), c: C.blue },
+                      { l: "Valor (EV)", v: evPct(data.top_apuesta?.ev), c: C.purple },
                     ].map(({ l, v, c }) => (
                       <div key={l} style={{ background: "#ffffff11", borderRadius: 8, padding: "10px", textAlign: "center" }}>
                         <div style={{ fontSize: 20, fontWeight: 800, color: c }}>{v}</div>
@@ -1880,7 +1893,7 @@ export default function BetFutProV3() {
                             min="0"
                             style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "7px 10px", color: C.text, fontSize: 13, fontWeight: 600 }}
                           />
-                          <span style={{ fontSize: 11, color: sk.color, fontWeight: 700, flexShrink: 0 }}>EV +{((data.top_apuesta?.ev||0)*100).toFixed(0)}% · {data.top_apuesta?.nivel_confianza}% conf</span>
+                          <span style={{ fontSize: 11, color: sk.color, fontWeight: 700, flexShrink: 0 }}>EV {evPct(data.top_apuesta?.ev, 0)} · {pct(data.top_apuesta?.nivel_confianza)} conf</span>
                         </div>
                         <div style={{ marginTop: 10, fontSize: 10, color: C.dim, lineHeight: 1.5 }}>
                           📊 Stake calculado con el modelo de gestión de riesgo de BetFut basado en EV y nivel de confianza
@@ -1951,7 +1964,7 @@ export default function BetFutProV3() {
                               </div>
                               <div style={{ textAlign: "right", flexShrink: 0 }}>
                                 <div style={{ fontSize: 15, fontWeight: 700, color: C.muted }}>x{m.cuota?.toFixed(2)}</div>
-                                <div style={{ fontSize: 10, color: m.ev > 0 ? C.green : C.red }}>EV: {m.ev > 0 ? "+" : ""}{((m.ev || 0) * 100).toFixed(1)}%</div>
+                                <div style={{ fontSize: 10, color: m.ev == null ? C.dim : m.ev > 0 ? C.green : C.red }}>EV: {m.ev == null ? "—" : `${m.ev > 0 ? "+" : ""}${(m.ev * 100).toFixed(1)}%`}</div>
                               </div>
                             </div>
                           ))}

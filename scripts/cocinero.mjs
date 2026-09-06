@@ -39,6 +39,7 @@ import {
   construirMensajeUsuario,
   parsearRespuestaAnalisis,
   normalizarAnalisis,
+  ordenarMercados,
   adjuntarTabla,
   adjuntarAltitud,
   adjuntarPosts,
@@ -629,6 +630,7 @@ if (DRY) {
     const texto = await llamarClaude(mensaje);
     const parsed = parsearRespuestaAnalisis(texto);
     normalizarAnalisis(parsed);
+    ordenarMercados(parsed);
     adjuntarTabla(parsed, datos);
     adjuntarAltitud(parsed, datos);
     adjuntarPosts(parsed);
