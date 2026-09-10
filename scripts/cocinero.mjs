@@ -205,11 +205,20 @@ const utcMs = (t) => (t ? new Date(/Z$|[+-]\d{2}:?\d{2}$/.test(t) ? t : t + "Z")
 // fallback se anuncia en el log — la excepcion se ve, no se camufla.
 const TOLERANCIA_FRONTERA_DIAS = 21;
 const hoyISO = new Date().toISOString().slice(0, 10);
+// Memo por proceso: el mantenimiento de arbitros (pieza 2) re-consulta
+// las mismas ligas que la seleccion — sin cache serian 17 peticiones
+// dobladas en cada corrida real. Un fallo de /leagues NO se cachea: el
+// siguiente uso lo reintenta.
+const seasonCache = new Map();
 const resolverSeason = async (ligaId) => {
+  if (seasonCache.has(ligaId)) return seasonCache.get(ligaId);
   const d = await af(`/leagues?id=${ligaId}`);
   const seasons = d.response?.[0]?.seasons || [];
   const s = seasons.find((x) => x.start <= hoyISO && hoyISO <= x.end);
-  if (s) return s.year;
+  if (s) {
+    seasonCache.set(ligaId, s.year);
+    return s.year;
+  }
   const limite = new Date(Date.now() - TOLERANCIA_FRONTERA_DIAS * 86400000).toISOString().slice(0, 10);
   const reciente = seasons
     .filter((x) => x.end && x.end < hoyISO && x.end >= limite)
@@ -217,8 +226,10 @@ const resolverSeason = async (ligaId) => {
   if (reciente) {
     const nombre = LIGAS.find((l) => l.id === ligaId)?.nombre || `liga ${ligaId}`;
     console.log(`(fallback frontera) ${nombre}: season ${reciente.year}, end vencido ${reciente.end}`);
+    seasonCache.set(ligaId, reciente.year);
     return reciente.year;
   }
+  seasonCache.set(ligaId, null);
   return null;
 };
 
@@ -606,6 +617,65 @@ if (SONDA_PLAZAS) {
   process.exit(ligasCaidas.length ? 1 : 0);
 }
 
+// ── Nucleo compartido de siembra de arbitros (v2c) ────────────────────
+// Dado un conjunto de fixtures jugados CON referee (cola de {f, liga}),
+// pide sus tarjetas (1 peticion por fixture, en tandas) y upsertea las
+// filas crudas en arbitro_partidos. Lo usan el backfill de temporada
+// (--sembrar-arbitros) y el mantenimiento diario del cocinero (ventana
+// de 2 dias): una sola logica, dos ventanas. Devuelve { sembrados,
+// okPorLiga, caidos }; un fallo del UPSERT lanza y cada caller decide —
+// el backfill aborta con exit 1, el mantenimiento avisa y sigue.
+const sembrarTarjetasArbitros = async (cola) => {
+  const stats = await enTandas(cola, async ({ f }) => {
+    const d = await af(`/fixtures/statistics?fixture=${f.fixture.id}`);
+    return { bloques: d.response || [] };
+  });
+
+  const filasUpsert = [];
+  const caidos = [];
+  const okPorLiga = new Map();
+  cola.forEach(({ f, liga }, i) => {
+    const s = stats[i];
+    if (!s || s.__error) {
+      caidos.push(`${f.fixture.id} (${liga.nombre})${s?.__error ? `: ${s.__error}` : ""}`);
+      return;
+    }
+    // Tarjetas: suma de ambos equipos; value null cuenta como 0 (asi
+    // entrega el cero esta API). Solo si la respuesta NO trae bloques se
+    // guarda NULL — "stats no disponibles", fila sembrada sin reintento.
+    let amarillas = null, rojas = null;
+    if (s.bloques.length) {
+      const suma = (tipo) => s.bloques.reduce((acc, eq) => {
+        const v = (eq.statistics || []).find((x) => x.type === tipo)?.value;
+        return acc + (Number(v) || 0);
+      }, 0);
+      amarillas = suma("Yellow Cards");
+      rojas = suma("Red Cards");
+    }
+    const n = normalizarArbitro(f.fixture.referee);
+    filasUpsert.push({
+      fixture_id: f.fixture.id,
+      arbitro_clave: n?.clave ?? null,
+      arbitro_display: n?.display ?? null,
+      liga_id: liga.id,
+      fecha: (f.fixture.date || "").slice(0, 10) || null,
+      amarillas,
+      rojas,
+    });
+    okPorLiga.set(liga.id, (okPorLiga.get(liga.id) || 0) + 1);
+  });
+
+  if (filasUpsert.length) {
+    const r = await fetch(`${SUPA_URL}/rest/v1/arbitro_partidos?on_conflict=fixture_id`, {
+      method: "POST",
+      headers: { ...cabecerasSupa(SUPA_KEY), "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(filasUpsert),
+    });
+    if (!r.ok) throw new Error(`Supabase ${r.status}: ${(await r.text()).slice(0, 200)}`);
+  }
+  return { sembrados: filasUpsert.length, okPorLiga, caidos };
+};
+
 // ── Sembrador de ARBITROS (v2c, pieza 1): backfill de tarjetas ────────
 // Rellena arbitro_partidos con filas CRUDAS por partido jugado con
 // referee — los promedios se calculan al leer, recomputables. TROCEADO Y
@@ -679,56 +749,16 @@ if (SEMBRAR_ARBITROS) {
     for (const f of c.tomados) cola.push({ f, liga: c.liga });
   }
 
-  const stats = await enTandas(cola, async ({ f }) => {
-    const d = await af(`/fixtures/statistics?fixture=${f.fixture.id}`);
-    return { bloques: d.response || [] };
-  });
-
-  const filasUpsert = [];
-  const caidos = [];
-  const okPorLiga = new Map();
-  cola.forEach(({ f, liga }, i) => {
-    const s = stats[i];
-    if (!s || s.__error) {
-      caidos.push(`${f.fixture.id} (${liga.nombre})${s?.__error ? `: ${s.__error}` : ""}`);
-      return;
-    }
-    // Tarjetas: suma de ambos equipos; value null cuenta como 0 (asi
-    // entrega el cero esta API). Solo si la respuesta NO trae bloques se
-    // guarda NULL — "stats no disponibles", fila sembrada sin reintento.
-    let amarillas = null, rojas = null;
-    if (s.bloques.length) {
-      const suma = (tipo) => s.bloques.reduce((acc, eq) => {
-        const v = (eq.statistics || []).find((x) => x.type === tipo)?.value;
-        return acc + (Number(v) || 0);
-      }, 0);
-      amarillas = suma("Yellow Cards");
-      rojas = suma("Red Cards");
-    }
-    const n = normalizarArbitro(f.fixture.referee);
-    filasUpsert.push({
-      fixture_id: f.fixture.id,
-      arbitro_clave: n?.clave ?? null,
-      arbitro_display: n?.display ?? null,
-      liga_id: liga.id,
-      fecha: (f.fixture.date || "").slice(0, 10) || null,
-      amarillas,
-      rojas,
-    });
-    okPorLiga.set(liga.id, (okPorLiga.get(liga.id) || 0) + 1);
-  });
-
-  if (filasUpsert.length) {
-    const r = await fetch(`${SUPA_URL}/rest/v1/arbitro_partidos?on_conflict=fixture_id`, {
-      method: "POST",
-      headers: { ...cabecerasSupa(SUPA_KEY), "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
-      body: JSON.stringify(filasUpsert),
-    });
-    if (!r.ok) {
-      console.error(`Upsert en arbitro_partidos fallo — Supabase ${r.status}: ${(await r.text()).slice(0, 200)}`);
-      process.exit(1);
-    }
+  let resultado;
+  try {
+    resultado = await sembrarTarjetasArbitros(cola);
+  } catch (e) {
+    // El mensaje ya viene truncado del nucleo: sin re-recorte, que no se
+    // pierdan los ultimos caracteres del motivo de Supabase.
+    console.error(`Upsert en arbitro_partidos fallo — ${String(e.message)}`);
+    process.exit(1);
   }
+  const { okPorLiga, caidos } = resultado;
 
   console.log("");
   let pendienteGlobal = 0;
@@ -753,7 +783,7 @@ if (SEMBRAR_ARBITROS) {
   // tambien habia-trabajo-pero-cero-sembrados (cuota agotada tras los
   // listados: todos los statistics caen y sin esto saldria verde con
   // cero progreso — misma regla que el cocinero con errores sin generar).
-  process.exit(ligasCaidas.length || (cola.length && !filasUpsert.length) ? 1 : 0);
+  process.exit(ligasCaidas.length || (cola.length && !resultado.sembrados) ? 1 : 0);
 }
 
 // ── Sembrador de estadios (Recetario v2b): /teams → Supabase ──────────
@@ -1141,6 +1171,71 @@ if (DRY) {
 
   console.log(`\nRESUMEN REAL: generados=${resultado.generados} | salta compuerta definitiva=${resultado.sin_cuotas_definitiva} | errores=${resultado.errores.length} | podados=${podados} | cuaderno=${filaCuaderno ? `fila ${filaCuaderno.id}` : "no disponible"}${cortocircuito ? " | CORTACIRCUITOS: detenido tras 3 guardados fallidos consecutivos" : ""}`);
   for (const e of resultado.errores) console.log(`  - ${e.partido} (${e.id}): ${e.error.slice(0, 160)}`);
+
+  // ── Mantenimiento de arbitros (v2c, pieza 2): el goteo diario ───────
+  // Solo en modo real y tras la coccion: partidos jugados de los ultimos
+  // 2 dias con referee que aun no tengan fila en arbitro_partidos. Tope
+  // chico: es un goteo — lo que no quepa lo recoge el proximo turno. La
+  // limpieza JAMAS pinta la corrida de rojo ni toca la coccion (el
+  // analisis es el producto): cualquier fallo queda en una linea OJO.
+  // Las seasons salen del memo de resolverSeason: 0 peticiones extra en
+  // la corrida programada (seleccionar ya las calento); con --fixture el
+  // memo esta frio y se resuelven aqui, en tandas.
+  const TOPE_MANTENIMIENTO = 60;
+  try {
+    const JUGADO_M = new Set(["FT", "AET", "PEN"]);
+    const desdeM = new Date((ahoraS - 2 * 86400) * 1000).toISOString().slice(0, 10);
+    const hastaM = new Date(ahoraS * 1000).toISOString().slice(0, 10);
+    const avisosM = [];
+
+    const seasonsM = await enTandas(LIGAS, async (l) => ({ id: l.id, season: await resolverSeason(l.id) }));
+    // Una season con __error (no un null legitimo de temporada terminada,
+    // que ademas no puede tener partidos en la ventana) tambien es "liga
+    // caida": al OJO, que el "al dia" no mienta.
+    LIGAS.forEach((l, i) => {
+      if (seasonsM[i]?.__error) avisosM.push(`${l.nombre}: season caida`);
+    });
+    const conSeasonM = LIGAS.map((l, i) => ({ ...l, season: seasonsM[i]?.season })).filter((l) => l.season != null);
+
+    const lotesM = await enTandas(conSeasonM, async (l) => {
+      const d = await af(`/fixtures?league=${l.id}&season=${l.season}&from=${desdeM}&to=${hastaM}&timezone=UTC`);
+      return (d.response || []).map((f) => ({ f, liga: l }));
+    });
+    const candidatosM = [];
+    lotesM.forEach((lote, i) => {
+      if (!lote || lote.__error) { avisosM.push(`${conSeasonM[i].nombre}: fixtures caidos`); return; }
+      for (const x of lote) {
+        if (!JUGADO_M.has(x.f.fixture?.status?.short)) continue;
+        if (!(typeof x.f.fixture?.referee === "string" && x.f.fixture.referee.trim())) continue;
+        candidatosM.push(x);
+      }
+    });
+
+    let sembradosM = 0, pendientesM = 0;
+    if (candidatosM.length) {
+      const ids = candidatosM.map((x) => x.f.fixture.id);
+      const r = await fetch(
+        `${SUPA_URL}/rest/v1/arbitro_partidos?select=fixture_id&fixture_id=in.(${ids.join(",")})`,
+        { headers: cabecerasSupa(SUPA_KEY) }
+      );
+      const filasEx = await r.json().catch(() => null);
+      if (!r.ok || !Array.isArray(filasEx))
+        throw new Error(`lectura de arbitro_partidos (HTTP ${r.status}): ${JSON.stringify(filasEx)?.slice(0, 100) ?? "cuerpo ilegible"}`);
+      const ya = new Set(filasEx.map((x) => x.fixture_id));
+      const nuevosM = candidatosM.filter((x) => !ya.has(x.f.fixture.id));
+      const res = await sembrarTarjetasArbitros(nuevosM.slice(0, TOPE_MANTENIMIENTO));
+      sembradosM = res.sembrados;
+      pendientesM = nuevosM.length - res.sembrados;
+      if (res.caidos.length) avisosM.push(`${res.caidos.length} fixture(s) con statistics caidos`);
+    }
+    console.log(sembradosM || pendientesM
+      ? `MANTENIMIENTO ARBITROS: ${sembradosM} sembrados, ${pendientesM} pendientes (recoge el proximo turno)`
+      : `MANTENIMIENTO ARBITROS: al dia`);
+    if (avisosM.length) console.log(`OJO mantenimiento arbitros: ${avisosM.join("; ")} — el proximo turno reintenta`);
+  } catch (e) {
+    console.log(`OJO mantenimiento arbitros: ${String(e.message).slice(0, 160)} — el proximo turno reintenta`);
+  }
+
   if (cortocircuito) process.exitCode = 1;
   else if (resultado.errores.length && resultado.generados === 0 && cola.length > 0) process.exitCode = 1;
 }
