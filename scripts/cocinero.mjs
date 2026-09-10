@@ -182,11 +182,30 @@ const af = async (ruta) => {
 const utcMs = (t) => (t ? new Date(/Z$|[+-]\d{2}:?\d{2}$/.test(t) ? t : t + "Z").getTime() : NaN);
 
 // ── 1. Season por fechas REALES (el flag current miente: Paraguay 250) ──
+// Fallback de FRONTERA: si ninguna season contiene hoy, vale la de end
+// mas reciente dentro de la tolerancia — puentea los huecos entre etapas
+// (Apertura→Clausura) y la frontera de enero mientras la API carga las
+// fechas nuevas. Caso medido 8-sep-2026: Venezuela con end vencido el
+// 7-sep y fixtures aun activos bajo esa misma season. Mas alla de la
+// tolerancia sigue irresoluble: temporada realmente terminada. El
+// fallback se anuncia en el log — la excepcion se ve, no se camufla.
+const TOLERANCIA_FRONTERA_DIAS = 21;
 const hoyISO = new Date().toISOString().slice(0, 10);
 const resolverSeason = async (ligaId) => {
   const d = await af(`/leagues?id=${ligaId}`);
-  const s = (d.response?.[0]?.seasons || []).find((x) => x.start <= hoyISO && hoyISO <= x.end);
-  return s?.year ?? null;
+  const seasons = d.response?.[0]?.seasons || [];
+  const s = seasons.find((x) => x.start <= hoyISO && hoyISO <= x.end);
+  if (s) return s.year;
+  const limite = new Date(Date.now() - TOLERANCIA_FRONTERA_DIAS * 86400000).toISOString().slice(0, 10);
+  const reciente = seasons
+    .filter((x) => x.end && x.end < hoyISO && x.end >= limite)
+    .sort((a, b) => (a.end < b.end ? 1 : -1))[0];
+  if (reciente) {
+    const nombre = LIGAS.find((l) => l.id === ligaId)?.nombre || `liga ${ligaId}`;
+    console.log(`(fallback frontera) ${nombre}: season ${reciente.year}, end vencido ${reciente.end}`);
+    return reciente.year;
+  }
+  return null;
 };
 
 // ── 2. Seleccion: NS con kickoff en [ahora, ahora+ventana], en UTC ────
@@ -197,9 +216,11 @@ const hastaS = ahoraS + 32 * 3600;
 const hastaSondaS = ahoraS + 72 * 3600;
 
 // Ligas que la seleccion perdio (season irresoluble o fixtures caidos).
-// La sonda las lista en su reporte para que "—" nunca esconda un fallo de
-// datos; el cocinero normal no lee esta lista (su red es el fallback en
-// vivo, que regenera al abrir el partido).
+// La sonda de cuotas las lista en su reporte, y el cocinero las imprime
+// como OJO antes de TOTALES — solo aviso, SIN exit 1: una corrida del
+// cron no debe pintarse de crash por una liga caida; la siguiente
+// reintenta. (En las sondas si hay exit 1: alli la completitud es el
+// producto.)
 const ligasSinDatos = [];
 
 const seleccionar = async (limiteS = hastaS) => {
@@ -756,6 +777,14 @@ for (const x of filas) {
 }
 const cuenta = (d) => filas.filter((x) => x.decision === d || x.decision.startsWith(d)).length;
 console.log("─".repeat(110));
+// Mejora ascendida de las sondas (8-sep): las ligas que la seleccion
+// perdio se avisan tambien aqui — Venezuela estuvo dias fuera del cron
+// sin que ninguna corrida lo dijera. Solo aviso, sin exit 1.
+if (ligasSinDatos.length) {
+  console.log(`OJO — ligas sin datos en esta corrida (la proxima reintenta):`);
+  for (const l of ligasSinDatos) console.log(`  - ${l}`);
+  console.log("─".repeat(110));
+}
 console.log(`TOTALES: ${filas.length} en ventana | generar=${cuenta("generar")} | salta cacheado=${cuenta("salta cacheado")} | salta sin cuotas=${cuenta("salta sin cuotas")} | salta status=${cuenta("salta status")} | fuera de tope=${cuenta("fuera de tope")} | errores=${cuenta("error")}`);
 if (DRY) {
   console.log(`(ensayo: sin llamadas a Claude, sin escrituras)`);
