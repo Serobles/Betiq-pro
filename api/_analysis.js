@@ -386,6 +386,31 @@ export const adjuntarAltitud = (analisis, f) => {
   return analisis;
 };
 
+// ── Normalizador de arbitros (Recetario v2c, pieza 1) ─────────────────
+// El referee de API-Football es texto libre ("Wilmar Roldán, Colombia",
+// "G. Pereira, Uruguay", "  Anderson  Daronco"). Aqui se hace
+// determinista: clave = sin el ", Pais" final, sin tildes ni puntos,
+// espacios colapsados, minusculas — la llave de agrupacion en
+// arbitro_partidos. display conserva tildes y mayusculas (solo limpia
+// pais y espacios). esAbreviado marca iniciales ("G. Pereira"): el cruce
+// abreviado↔completo NO se resuelve aqui — vive en la lectura (pieza 3)
+// con la regla del candidato unico. Entrada vacia o no-string → null.
+export const normalizarArbitro = (crudo) => {
+  if (typeof crudo !== "string") return null;
+  // fuera el ", Pais" final (los nombres no llevan coma interna)
+  const sinPais = crudo.replace(/,[^,]*$/, "");
+  const display = sinPais.replace(/\s+/g, " ").trim();
+  if (!display) return null;
+  const clave = display
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/\./g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const esAbreviado = clave.split(" ").some((t) => t.length === 1);
+  return { clave, display, esAbreviado };
+};
+
 // ── Posts para compartir ──────────────────────────────────────────────
 // Muta parsed (post_telegram/post_whatsapp) y devuelve { bL, bV, pr },
 // que el cliente reutiliza para el snapshot del historial.

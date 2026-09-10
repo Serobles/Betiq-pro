@@ -28,6 +28,12 @@
 //      fixtures con venue null por liga; LEE estadios pero no escribe
 //      nada; ignora --dry-run, --max y --fixture; exige API_FOOTBALL_KEY
 //      + SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)
+//   node scripts/cocinero.mjs --sembrar-arbitros                    sembrador de arbitros (v2c)
+//     (backfill de arbitro_partidos por temporada: fixtures jugados con
+//      referee → tarjetas (1 peticion/fixture) → upsert. TROCEADO y
+//      REANUDABLE: hasta 600 fixtures nuevos por corrida — correrlo
+//      varias veces hasta vaciar. Ignora --dry-run, --max y --fixture;
+//      exige API_FOOTBALL_KEY + SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY)
 //   node scripts/cocinero.mjs --sembrar-estadios                    sembrador (v2b)
 //     (/teams de las 17 ligas → tablas estadios y equipos_estadio;
 //      JAMAS toca altitud_m; ignora --dry-run, --max y --fixture; exige
@@ -54,6 +60,7 @@ import {
   adjuntarTabla,
   adjuntarAltitud,
   adjuntarPosts,
+  normalizarArbitro,
 } from "../api/_analysis.js";
 
 // ── Flags ─────────────────────────────────────────────────────────────
@@ -61,13 +68,15 @@ const args = process.argv.slice(2);
 const DRY = args.includes("--dry-run");
 const SONDA = args.includes("--sonda");
 // Precedencia entre casillas: --sonda > --sonda-arbitros >
-// --sonda-plazas > --sembrar-estadios. Entre modos de solo lectura gana
-// el mas antiguo; cualquier sonda gana al que escribe — el modo que
+// --sonda-plazas > --sembrar-arbitros > --sembrar-estadios. Entre modos
+// de solo lectura gana el mas antiguo; cualquier sonda gana a los que
+// escriben, y entre sembradores gana el de arbitros — el modo que
 // escribe nunca se activa por descuido de marcar dos casillas. El
 // ignorado avisa.
 const SONDA_ARBITROS = !SONDA && args.includes("--sonda-arbitros");
 const SONDA_PLAZAS = !SONDA && !SONDA_ARBITROS && args.includes("--sonda-plazas");
-const SEMBRAR = !SONDA && !SONDA_ARBITROS && !SONDA_PLAZAS && args.includes("--sembrar-estadios");
+const SEMBRAR_ARBITROS = !SONDA && !SONDA_ARBITROS && !SONDA_PLAZAS && args.includes("--sembrar-arbitros");
+const SEMBRAR = !SONDA && !SONDA_ARBITROS && !SONDA_PLAZAS && !SEMBRAR_ARBITROS && args.includes("--sembrar-estadios");
 // El || 60 no es adorno: en las corridas por schedule los inputs del
 // workflow llegan vacios y "--max=" parsearia a 0 — cero generaciones.
 const MAX = Number((args.find(a => a.startsWith("--max=")) || "--max=60").slice(6)) || 60;
@@ -83,6 +92,7 @@ const DISPARADOR = (args.find(a => a.startsWith("--disparador=")) || "--disparad
 if (SONDA) console.log(`SONDA: solo lectura del mercado | ventana=72h | disparador=${DISPARADOR}`);
 else if (SONDA_ARBITROS) console.log(`SONDA ARBITROS: disponibilidad de referee | futuros 72h + histórico 30d | disparador=${DISPARADOR}`);
 else if (SONDA_PLAZAS) console.log(`SONDA PLAZAS: venues de fixtures vs atlas | temporada completa | disparador=${DISPARADOR}`);
+else if (SEMBRAR_ARBITROS) console.log(`SEMBRADOR DE ARBITROS: backfill de tarjetas por temporada | tope=600 | disparador=${DISPARADOR}`);
 else if (SEMBRAR) console.log(`SEMBRADOR DE ESTADIOS: /teams de las ligas → estadios + equipos_estadio | disparador=${DISPARADOR}`);
 else console.log(`COCINERO — modo=${DRY ? "ENSAYO" : "REAL"} | max=${MAX} | disparador=${DISPARADOR}`);
 const sondaActiva = SONDA ? "la sonda de cuotas" : SONDA_ARBITROS ? "la sonda de arbitros" : SONDA_PLAZAS ? "la sonda de plazas" : null;
@@ -90,8 +100,10 @@ if (SONDA && args.includes("--sonda-arbitros"))
   console.error("(aviso) --sonda-arbitros ignorado: la sonda de cuotas tiene precedencia");
 if ((SONDA || SONDA_ARBITROS) && args.includes("--sonda-plazas"))
   console.error(`(aviso) --sonda-plazas ignorado: ${SONDA ? "la sonda de cuotas" : "la sonda de arbitros"} tiene precedencia`);
-if (sondaActiva && args.includes("--sembrar-estadios"))
-  console.error(`(aviso) --sembrar-estadios ignorado: ${sondaActiva} (solo lectura) tiene precedencia`);
+if (sondaActiva && args.includes("--sembrar-arbitros"))
+  console.error(`(aviso) --sembrar-arbitros ignorado: ${sondaActiva} (solo lectura) tiene precedencia`);
+if ((sondaActiva || SEMBRAR_ARBITROS) && args.includes("--sembrar-estadios"))
+  console.error(`(aviso) --sembrar-estadios ignorado: ${sondaActiva ? `${sondaActiva} (solo lectura)` : "el sembrador de arbitros"} tiene precedencia`);
 
 // ── Credenciales ──────────────────────────────────────────────────────
 const AF_KEY = process.env.API_FOOTBALL_KEY;
@@ -105,17 +117,19 @@ const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY || "";
 
 // El modo real gasta dinero: si falta un secreto, se para AQUI con la
 // lista completa, no a mitad de corrida. Las sondas de cuotas y arbitros
-// no tocan Supabase: basta API_FOOTBALL_KEY. La sonda de plazas LEE la
-// tabla estadios (exige la service key: es el contexto del cron en
-// Actions, sin anon key) y el sembrador ademas escribe — ambos validan
-// la key y su formato aunque lleven --dry-run, que ignoran.
-if ((!DRY && !SONDA && !SONDA_ARBITROS && !SONDA_PLAZAS) || SEMBRAR || SONDA_PLAZAS) {
+// no tocan Supabase: basta API_FOOTBALL_KEY. La sonda de plazas LEE
+// Supabase y los dos sembradores ademas escriben: exigen la service key
+// (contexto del cron en Actions, sin anon key) y validan su formato
+// aunque lleven --dry-run, que ignoran. Ninguno de ellos exige Anthropic.
+const CON_SUPABASE = SEMBRAR || SEMBRAR_ARBITROS || SONDA_PLAZAS;
+if ((!DRY && !SONDA && !SONDA_ARBITROS && !CON_SUPABASE) || CON_SUPABASE) {
   const faltan = [];
-  if (!ANTHROPIC_KEY && !SEMBRAR && !SONDA_PLAZAS) faltan.push("ANTHROPIC_API_KEY");
+  if (!ANTHROPIC_KEY && !CON_SUPABASE) faltan.push("ANTHROPIC_API_KEY");
   if (!SUPA_URL) faltan.push("SUPABASE_URL");
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) faltan.push("SUPABASE_SERVICE_ROLE_KEY");
   if (faltan.length) {
-    console.error(`${SEMBRAR ? "Sembrador" : SONDA_PLAZAS ? "Sonda de plazas" : "Modo real"}: faltan secretos en el entorno: ${faltan.join(", ")}`);
+    const quien = SEMBRAR ? "Sembrador" : SEMBRAR_ARBITROS ? "Sembrador de arbitros" : SONDA_PLAZAS ? "Sonda de plazas" : "Modo real";
+    console.error(`${quien}: faltan secretos en el entorno: ${faltan.join(", ")}`);
     process.exit(1);
   }
 
@@ -590,6 +604,156 @@ if (SONDA_PLAZAS) {
   console.log(`\nPeticiones a API-Football usadas: ${peticionesAF}`);
   // Patron conocido: check verde solo con las 17 ligas censadas.
   process.exit(ligasCaidas.length ? 1 : 0);
+}
+
+// ── Sembrador de ARBITROS (v2c, pieza 1): backfill de tarjetas ────────
+// Rellena arbitro_partidos con filas CRUDAS por partido jugado con
+// referee — los promedios se calculan al leer, recomputables. TROCEADO Y
+// REANUDABLE: cada corrida siembra hasta TOPE fixtures nuevos (1 peticion
+// de statistics por fixture) y deja dicho cuanto falta; correrlo desde el
+// boton varias veces hasta vaciar. Un fixture caido queda SIN fila y la
+// proxima corrida lo reintenta sola; exit 1 solo si una LIGA entera cae.
+if (SEMBRAR_ARBITROS) {
+  // ~600 statistics + ~35 base por corrida: comodo en la cuota diaria y
+  // ~3 minutos al ritmo de tandas. Temporada completa ≈ 2-3 corridas.
+  const TOPE_BACKFILL = 600;
+  const JUGADO = new Set(["FT", "AET", "PEN"]);
+  const ligasCaidas = [];
+
+  const seasons = await enTandas(LIGAS, async (l) => ({ id: l.id, season: await resolverSeason(l.id) }));
+  const conSeason = [];
+  LIGAS.forEach((l, i) => {
+    if (seasons[i]?.season != null) conSeason.push({ ...l, season: seasons[i].season });
+    else {
+      console.error(`(aviso) ${l.nombre}: season irresoluble${seasons[i]?.__error ? ` (${seasons[i].__error})` : ""} — liga omitida`);
+      ligasCaidas.push(`${l.nombre} — season irresoluble`);
+    }
+  });
+
+  const porLiga = await enTandas(conSeason, async (l) => {
+    const d = await af(`/fixtures?league=${l.id}&season=${l.season}&timezone=UTC`);
+    return { filas: d.response || [], paginas: d.paging?.total ?? 1 };
+  });
+
+  // Lo YA sembrado, paginado por Range: PostgREST corta a 1000 filas la
+  // consulta sin rango y esta tabla crecera a miles. Sin saber que hay,
+  // no se puede reanudar: se aborta con el motivo entero.
+  const sembrados = new Set();
+  try {
+    for (let desde = 0; ; desde += 1000) {
+      const r = await fetch(`${SUPA_URL}/rest/v1/arbitro_partidos?select=fixture_id&order=fixture_id`, {
+        headers: { ...cabecerasSupa(SUPA_KEY), Range: `${desde}-${desde + 999}` },
+      });
+      if (r.status === 416) break; // rango mas alla del final: no hay mas
+      const filas = await r.json();
+      if (!r.ok || !Array.isArray(filas)) throw new Error(JSON.stringify(filas).slice(0, 120));
+      for (const x of filas) sembrados.add(x.fixture_id);
+      if (filas.length < 1000) break;
+    }
+  } catch (e) {
+    console.error(`arbitro_partidos no responde (${String(e.message).slice(0, 120)}).`);
+    console.error(`Sin saber que hay sembrado no se puede reanudar. Se aborta.`);
+    process.exit(1);
+  }
+
+  const conReferee = (f) => typeof f.fixture?.referee === "string" && f.fixture.referee.trim() !== "";
+  const porLigaCand = [];
+  porLiga.forEach((lote, i) => {
+    const liga = conSeason[i];
+    if (!lote || lote.__error) {
+      console.error(`(aviso) ${liga.nombre}: /fixtures fallo${lote?.__error ? ` (${lote.__error})` : ""} — liga omitida`);
+      ligasCaidas.push(`${liga.nombre} — fixtures: ${lote?.__error || "sin respuesta"}`);
+      return;
+    }
+    if (lote.paginas > 1)
+      ligasCaidas.push(`${liga.nombre} — paginacion no leida (${lote.paginas} paginas: backfill parcial)`);
+    const jugables = lote.filas.filter((f) => JUGADO.has(f.fixture?.status?.short) && conReferee(f));
+    const nuevos = jugables.filter((f) => !sembrados.has(f.fixture.id));
+    porLigaCand.push({ liga, ya: jugables.length - nuevos.length, nuevos });
+  });
+
+  // Tope global en orden de LIGAS: las primeras se vacian antes.
+  const cola = [];
+  for (const c of porLigaCand) {
+    c.tomados = c.nuevos.slice(0, Math.max(0, TOPE_BACKFILL - cola.length));
+    for (const f of c.tomados) cola.push({ f, liga: c.liga });
+  }
+
+  const stats = await enTandas(cola, async ({ f }) => {
+    const d = await af(`/fixtures/statistics?fixture=${f.fixture.id}`);
+    return { bloques: d.response || [] };
+  });
+
+  const filasUpsert = [];
+  const caidos = [];
+  const okPorLiga = new Map();
+  cola.forEach(({ f, liga }, i) => {
+    const s = stats[i];
+    if (!s || s.__error) {
+      caidos.push(`${f.fixture.id} (${liga.nombre})${s?.__error ? `: ${s.__error}` : ""}`);
+      return;
+    }
+    // Tarjetas: suma de ambos equipos; value null cuenta como 0 (asi
+    // entrega el cero esta API). Solo si la respuesta NO trae bloques se
+    // guarda NULL — "stats no disponibles", fila sembrada sin reintento.
+    let amarillas = null, rojas = null;
+    if (s.bloques.length) {
+      const suma = (tipo) => s.bloques.reduce((acc, eq) => {
+        const v = (eq.statistics || []).find((x) => x.type === tipo)?.value;
+        return acc + (Number(v) || 0);
+      }, 0);
+      amarillas = suma("Yellow Cards");
+      rojas = suma("Red Cards");
+    }
+    const n = normalizarArbitro(f.fixture.referee);
+    filasUpsert.push({
+      fixture_id: f.fixture.id,
+      arbitro_clave: n?.clave ?? null,
+      arbitro_display: n?.display ?? null,
+      liga_id: liga.id,
+      fecha: (f.fixture.date || "").slice(0, 10) || null,
+      amarillas,
+      rojas,
+    });
+    okPorLiga.set(liga.id, (okPorLiga.get(liga.id) || 0) + 1);
+  });
+
+  if (filasUpsert.length) {
+    const r = await fetch(`${SUPA_URL}/rest/v1/arbitro_partidos?on_conflict=fixture_id`, {
+      method: "POST",
+      headers: { ...cabecerasSupa(SUPA_KEY), "content-type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+      body: JSON.stringify(filasUpsert),
+    });
+    if (!r.ok) {
+      console.error(`Upsert en arbitro_partidos fallo — Supabase ${r.status}: ${(await r.text()).slice(0, 200)}`);
+      process.exit(1);
+    }
+  }
+
+  console.log("");
+  let pendienteGlobal = 0;
+  for (const c of porLigaCand) {
+    const n = okPorLiga.get(c.liga.id) || 0;
+    const faltan = c.nuevos.length - n;
+    pendienteGlobal += faltan;
+    console.log(`${c.liga.nombre}: ${n} nuevos, ${c.ya} ya sembrados, faltan ${faltan}`);
+  }
+
+  if (caidos.length) {
+    console.log(`\nFixtures caidos en esta corrida (sin fila: la proxima los reintenta):`);
+    for (const c of caidos) console.log(`  - ${c}`);
+  }
+  if (ligasCaidas.length) {
+    console.log(`\nOJO — ligas sin datos en esta corrida (su backfill no avanzo):`);
+    for (const l of ligasCaidas) console.log(`  - ${l}`);
+  }
+  console.log(`\nPENDIENTE GLOBAL al salir: ${pendienteGlobal} fixtures — corre el sembrador de nuevo hasta vaciarlo.`);
+  console.log(`Peticiones a API-Football usadas: ${peticionesAF}`);
+  // Check verde solo si la corrida AVANZO: liga entera caida = rojo, y
+  // tambien habia-trabajo-pero-cero-sembrados (cuota agotada tras los
+  // listados: todos los statistics caen y sin esto saldria verde con
+  // cero progreso — misma regla que el cocinero con errores sin generar).
+  process.exit(ligasCaidas.length || (cola.length && !filasUpsert.length) ? 1 : 0);
 }
 
 // ── Sembrador de estadios (Recetario v2b): /teams → Supabase ──────────
