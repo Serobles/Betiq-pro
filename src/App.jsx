@@ -426,24 +426,34 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
   } else if (SIN_JUGARSE[p.estado]) {
     derecha = <span style={chipS}>{SIN_JUGARSE[p.estado]}</span>;
   } else if (PROGRAMADO.has(p.estado)) {
-    // Bloqueado: solo el titulo. La explicacion va una vez al pie de la
-    // seccion, no repetida en cada tarjeta.
-    derecha = estaBloqueado(p) ? (
-      <span style={chipS}>🔒 {BLOQUEADO_TITULO}</span>
-    ) : (
-      <button
-        onClick={() => onAnalizar?.(p)}
-        disabled={analizando}
-        style={{
-          fontSize: 12, fontWeight: 800, color: "#fff", border: "none", borderRadius: 8,
-          padding: "7px 12px", whiteSpace: "nowrap",
-          cursor: analizando ? "wait" : "pointer",
-          background: analizando ? C.dim : "linear-gradient(135deg,#16a34a,#22c55e)",
-        }}
-      >
-        {analizando ? "Analizando..." : "Ver analisis"}
-      </button>
-    );
+    // El reloj manda sobre el status: en ligas de cobertura en vivo floja
+    // el proveedor sigue diciendo NS con el kickoff ya pasado (medido
+    // 10-sep-2026 con Venezuela). Mismo chequeo de timestamp que ya hace
+    // la vista del analisis — tarjeta y analisis deben decir lo mismo.
+    // Se evalua AL RENDER con la hora actual (como estaBloqueado): la
+    // lista se cachea 3 min y no debe congelar el veredicto.
+    if (p.timestamp * 1000 <= Date.now()) {
+      derecha = <span style={chipS}>Empezado</span>;
+    } else if (estaBloqueado(p)) {
+      // Bloqueado: solo el titulo. La explicacion va una vez al pie de
+      // la seccion, no repetida en cada tarjeta.
+      derecha = <span style={chipS}>🔒 {BLOQUEADO_TITULO}</span>;
+    } else {
+      derecha = (
+        <button
+          onClick={() => onAnalizar?.(p)}
+          disabled={analizando}
+          style={{
+            fontSize: 12, fontWeight: 800, color: "#fff", border: "none", borderRadius: 8,
+            padding: "7px 12px", whiteSpace: "nowrap",
+            cursor: analizando ? "wait" : "pointer",
+            background: analizando ? C.dim : "linear-gradient(135deg,#16a34a,#22c55e)",
+          }}
+        >
+          {analizando ? "Analizando..." : "Ver analisis"}
+        </button>
+      );
+    }
   } else {
     // Cualquier codigo no contemplado se muestra tal cual en vez de colarse
     // por la rama de "programado" y acabar con un boton que no toca.
