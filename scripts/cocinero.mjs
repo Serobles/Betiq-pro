@@ -59,6 +59,7 @@ import {
   ordenarMercados,
   adjuntarTabla,
   adjuntarAltitud,
+  adjuntarArbitro,
   adjuntarPosts,
   normalizarArbitro,
 } from "../api/_analysis.js";
@@ -1102,6 +1103,7 @@ if (DRY) {
     ordenarMercados(parsed);
     adjuntarTabla(parsed, datos);
     adjuntarAltitud(parsed, datos);
+    adjuntarArbitro(parsed, datos);
     adjuntarPosts(parsed);
     // Para el futuro "cuotas tomadas hace Xh" y para auditar el cron.
     parsed.generated_at = new Date().toISOString();

@@ -100,15 +100,27 @@ ${formatStats(f.stats_visitante, f.posicion_visitante)}
 
 ${tituloCuotas}
 ${bloqueCuotas}
-${bloqueAltitud(f.altitud)}
+${bloqueAltitud(f.altitud)}${bloqueArbitro(f.arbitro)}
 BAJAS ${f.fixture?.local?.nombre?.toUpperCase()}:
 ${formatLesionados(f.lesionados_local)}
 
 BAJAS ${f.fixture?.visitante?.nombre?.toUpperCase()}:
 ${formatLesionados(f.lesionados_visitante)}
 
-CONTEXTO: ${f.fixture?.estadio || "N/D"}, ${f.fixture?.ciudad || "N/D"} | Arbitro: ${f.fixture?.arbitro || "Por confirmar"}
+CONTEXTO: ${f.fixture?.estadio || "N/D"}, ${f.fixture?.ciudad || "N/D"}
 FUENTE: API-Football (datos oficiales en tiempo real)`;
+};
+
+// Bloque de arbitro del prompt (receta 5): solo con ficha MEDIDA de
+// arbitro_partidos — sin ficha, ni una palabra. Va ARRIBA de la zona de
+// recorte (junto a ALTITUD) y el referee salio de la linea CONTEXTO:
+// alli viajaba en la zona condenada y ademas duplicaria el dato.
+const bloqueArbitro = (a) => {
+  if (!a) return "";
+  return `
+ARBITRO: ${a.display} — ${a.partidos} partidos medidos, ${a.amarillas_prom} amarillas/partido, ${a.rojas_total} rojas.
+Instruccion de arbitro: usa este dato SOLO para mercados de tarjetas, y recomienda un pick de tarjetas SOLO si su linea aparece en las CUOTAS CLAVE; sin ficha o sin linea de tarjetas, no menciones al arbitro.
+`;
 };
 
 // Bloque de altitud del prompt: solo con dato REAL del estadio del
@@ -255,9 +267,9 @@ export const normalizarAnalisis = (parsed) => {
 
 // Version del recetario (roadmap 1d): sube cuando cambia la receta del
 // JSON. Historia: 2 = tabla_cabecera (3-sep), 3 = altitud (5-sep),
-// 4 = ranking determinista de mercados (6-sep). Los analisis viejos
-// conservan la suya y no se migran.
-export const RECETA_VERSION = 4;
+// 4 = ranking determinista de mercados (6-sep), 5 = ficha del arbitro
+// (13-sep). Los analisis viejos conservan la suya y no se migran.
+export const RECETA_VERSION = 5;
 
 // ── Orden determinista de mercados (receta 4) ─────────────────────────
 // La IA rellena ev, ranking y top_apuesta como tres verdades sueltas y a
@@ -383,6 +395,25 @@ export const adjuntarAltitud = (analisis, f) => {
   };
   if (a.visitante_origen_m != null) info.delta_visitante_m = a.partido_m - a.visitante_origen_m;
   analisis.altitud_info = info;
+  return analisis;
+};
+
+// ── Ficha del arbitro en la cabecera (Recetario v2c, receta 5) ────────
+// Determinista desde f.arbitro (football.js, seccion 7c: historial
+// medido de arbitro_partidos con candidato unico y muestra minima),
+// jamas del texto de la IA. Muta analisis. Sin ficha, el campo NO existe.
+export const adjuntarArbitro = (analisis, f) => {
+  // Defensa: si el modelo llegara a inventar una arbitro_info propia,
+  // aqui muere — la unica que existe es la determinista de abajo.
+  delete analisis.arbitro_info;
+  const a = f?.arbitro;
+  if (!a) return analisis;
+  analisis.arbitro_info = {
+    display: a.display,
+    partidos: a.partidos,
+    amarillas_prom: a.amarillas_prom,
+    rojas_total: a.rojas_total,
+  };
   return analisis;
 };
 

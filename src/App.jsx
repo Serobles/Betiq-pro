@@ -3,7 +3,7 @@ import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, getCac
 // Logica pura del analisis (prompt, searchData, parseo, normalizacion,
 // posts): compartida con el cron via api/_analysis.js para que ambos
 // produzcan EXACTAMENTE el mismo JSON cacheado.
-import { SYSTEM_PROMPT, construirSearchData, searchDataSinDatos, construirMensajeUsuario, parsearRespuestaAnalisis, normalizarAnalisis, ordenarMercados, adjuntarTabla, adjuntarAltitud, adjuntarPosts } from "../api/_analysis.js";
+import { SYSTEM_PROMPT, construirSearchData, searchDataSinDatos, construirMensajeUsuario, parsearRespuestaAnalisis, normalizarAnalisis, ordenarMercados, adjuntarTabla, adjuntarAltitud, adjuntarArbitro, adjuntarPosts } from "../api/_analysis.js";
 import * as XLSX from "xlsx";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -1436,6 +1436,7 @@ export default function BetFutProV3() {
       ordenarMercados(parsed);
       adjuntarTabla(parsed, footballData);
       adjuntarAltitud(parsed, footballData);
+      adjuntarArbitro(parsed, footballData);
       const { bL, bV, pr } = adjuntarPosts(parsed);
 
       setData(parsed);
@@ -1968,6 +1969,9 @@ export default function BetFutProV3() {
                     )}
                     {data.altitud_info && data.altitud_info.banda !== "ruido" && (
                       <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>🏔 {data.altitud_info.partido_m} m</div>
+                    )}
+                    {data.arbitro_info && (
+                      <div style={{ fontSize: 10, color: C.muted, marginTop: 2 }}>🟨 {data.arbitro_info.display} · {data.arbitro_info.amarillas_prom} amar./partido ({data.arbitro_info.partidos} pj)</div>
                     )}
                   </div>
                   <div style={{ textAlign: "right" }}>

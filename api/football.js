@@ -1,6 +1,27 @@
 import { exigirSesion } from "./_auth.js";
+import { normalizarArbitro } from "./_analysis.js";
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Credenciales de LECTURA de Supabase para los lectores del payload
+// (altitudes, arbitros): las mismas de api/_auth.js con respaldo en la
+// service key — el unico contexto sin anon key es el cron de Actions.
+// Devuelve null si no hay credencial: los lectores responden null y el
+// analisis sigue.
+const supabaseLectura = () => {
+  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
+  const clave =
+    process.env.SUPABASE_ANON_KEY ||
+    process.env.VITE_SUPABASE_ANON_KEY ||
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !clave) return null;
+  // La sb_secret_ va SOLO en apikey; un JWT (anon o service legacy) va
+  // tambien en Authorization — mismo criterio que el cocinero.
+  const cabeceras = clave.startsWith("sb_secret_")
+    ? { apikey: clave }
+    : { apikey: clave, Authorization: `Bearer ${clave}` };
+  return { url, cabeceras };
+};
 
 // ── Lector de altitudes (Recetario v2b, receta 3) ─────────────────────
 // Lee `estadios` y `equipos_estadio` de Supabase (SELECT publica) con las
@@ -11,21 +32,12 @@ const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 // propio de 3s por consulta). Maximo 2 consultas por partido.
 const leerAltitudes = async (localTeamId, visitanteTeamId, venuePartidoId) => {
   const nulos = { partido_m: null, local_origen_m: null, visitante_origen_m: null };
-  const url = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
-  const clave =
-    process.env.SUPABASE_ANON_KEY ||
-    process.env.VITE_SUPABASE_ANON_KEY ||
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !clave) return nulos;
+  const cred = supabaseLectura();
+  if (!cred) return nulos;
 
-  // La sb_secret_ va SOLO en apikey; un JWT (anon o service legacy) va
-  // tambien en Authorization — mismo criterio que el cocinero.
-  const cabeceras = clave.startsWith("sb_secret_")
-    ? { apikey: clave }
-    : { apikey: clave, Authorization: `Bearer ${clave}` };
   const consulta = async (ruta) => {
-    const r = await fetch(`${url}/rest/v1/${ruta}`, {
-      headers: cabeceras,
+    const r = await fetch(`${cred.url}/rest/v1/${ruta}`, {
+      headers: cred.cabeceras,
       signal: AbortSignal.timeout(3000),
     });
     if (!r.ok) throw new Error(`Supabase ${r.status}`);
@@ -58,6 +70,74 @@ const leerAltitudes = async (localTeamId, visitanteTeamId, venuePartidoId) => {
     };
   } catch {
     return nulos;
+  }
+};
+
+// ── Ficha del arbitro (Recetario v2c, receta 5) ───────────────────────
+// Si el fixture trae referee, se busca su historial en arbitro_partidos
+// (filas crudas: los promedios se calculan AQUI, al leer). Resolucion en
+// dos pasos: (a) clave exacta; (b) si el nombre viene abreviado y no hubo
+// match, cruce inicial+apellido contra las claves existentes SOLO con
+// candidato UNICO — 0 o 2+ candidatos = sin ficha, jamas se adivina.
+// REGLA DURA (patron altitud): cualquier error → null, la ficha jamas
+// rompe ni retrasa un analisis (timeout 3s por consulta).
+const MUESTRA_MINIMA_ARBITRO = 5; // menos partidos medidos = anecdota, no promedio
+const leerArbitro = async (refereeCrudo) => {
+  const n = normalizarArbitro(refereeCrudo);
+  if (!n) return null;
+  const cred = supabaseLectura();
+  if (!cred) return null;
+
+  const consulta = async (ruta) => {
+    const r = await fetch(`${cred.url}/rest/v1/${ruta}`, {
+      headers: cred.cabeceras,
+      signal: AbortSignal.timeout(3000),
+    });
+    if (!r.ok) throw new Error(`Supabase ${r.status}`);
+    const filas = await r.json();
+    if (!Array.isArray(filas)) throw new Error("respuesta no tabular");
+    return filas;
+  };
+
+  try {
+    const campos = "select=arbitro_clave,arbitro_display,amarillas,rojas";
+    // (a) clave exacta
+    let filas = await consulta(`arbitro_partidos?${campos}&arbitro_clave=eq.${encodeURIComponent(n.clave)}`);
+
+    // (b) cruce del abreviado: "g pereira" → inicial "g" + apellido
+    // "pereira", like anclado "g*pereira". Si las filas que casan
+    // pertenecen a MAS de una clave distinta, no hay ficha.
+    if (!filas.length && n.esAbreviado) {
+      const partes = n.clave.split(" ");
+      const inicial = partes[0].length === 1 ? partes[0] : null;
+      const apellido = partes[partes.length - 1].length > 1 ? partes[partes.length - 1] : null;
+      if (!inicial || !apellido) return null;
+      const candidatas = await consulta(
+        `arbitro_partidos?${campos}&arbitro_clave=like.${encodeURIComponent(`${inicial}*${apellido}`)}`
+      );
+      const claves = new Set(candidatas.map((x) => x.arbitro_clave));
+      if (claves.size !== 1) return null;
+      filas = candidatas;
+    }
+
+    // Promedios sobre filas CON dato de tarjetas (NULL = stats no
+    // disponibles: fuera del numerador y del denominador).
+    const medidos = filas.filter((x) => x.amarillas != null);
+    if (medidos.length < MUESTRA_MINIMA_ARBITRO) return null;
+    const amarillas = medidos.reduce((a, x) => a + x.amarillas, 0);
+    const rojas = medidos.reduce((a, x) => a + (x.rojas ?? 0), 0);
+    // El display mas largo suele ser la forma mas completa del nombre
+    // (util cuando el fixture vino abreviado y la tabla tiene el completo).
+    const display = filas.reduce((d, x) => ((x.arbitro_display || "").length > d.length ? x.arbitro_display : d), n.display);
+
+    return {
+      display,
+      partidos: medidos.length,
+      amarillas_prom: Number((amarillas / medidos.length).toFixed(1)),
+      rojas_total: rojas,
+    };
+  } catch {
+    return null;
   }
 };
 
@@ -691,10 +771,15 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
     // para la IA; el dato no se toca.
     const statsPeriodo = `temporada ${season} completa (todas las etapas sumadas)`;
 
-    // ── 7b. Altitud (receta 3): donde se juega y de donde viene cada
-    // equipo. Cualquier hueco (tabla sin sembrar, altitud_m sin rellenar,
-    // Supabase caido) queda en null — silencio honesto, jamas se rompe.
-    const altitud = await leerAltitudes(homeTeamId, awayTeamId, match.fixture.venue?.id ?? null);
+    // ── 7b+7c. Altitud (receta 3) y ficha del arbitro (receta 5) ──────
+    // Cualquier hueco (tablas sin sembrar, Supabase caido) queda en null:
+    // silencio honesto, jamas se rompe. En PARALELO a proposito — son
+    // independientes, y en un Supabase degradado el peor caso en serie
+    // doblaria el presupuesto de pared dentro del timeout de Vercel.
+    const [altitud, arbitro] = await Promise.all([
+      leerAltitudes(homeTeamId, awayTeamId, match.fixture.venue?.id ?? null),
+      leerArbitro(match.fixture.referee),
+    ]);
 
     return respuesta(200, {
       encontrado: true,
@@ -729,6 +814,7 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
       tabla,
       stats_periodo: statsPeriodo,
       altitud,
+      arbitro,
       posicion_local: posLocal
         ? { pos: posLocal.rank, pts: posLocal.points, forma: posLocal.form, grupo: posLocal.grupo }
         : null,
