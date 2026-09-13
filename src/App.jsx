@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, getCachedAnalysisCaducado, checkAndIncrementAnalysis, yaVioFixture, marcarFixtureVisto, loadHistorialSupabase, saveHistorialSupabase, PLAN_LIMITS } from './supabase.js';
+import { supabase, loginGoogle, loginFacebook, logout, getCachedAnalysis, getCachedAnalysisCaducado, checkAndIncrementAnalysis, yaVioFixture, marcarFixtureVisto, loadHistorialSupabase, saveHistorialSupabase, updateHistorialSupabase, deleteHistorialSupabase, saveBanca, PLAN_LIMITS } from './supabase.js';
 // Logica pura del analisis (prompt, searchData, parseo, normalizacion,
 // posts): compartida con el cron via api/_analysis.js para que ambos
 // produzcan EXACTAMENTE el mismo JSON cacheado.
@@ -278,6 +278,7 @@ function TransaccionCard({ r, onResult, onDelete, onUpdateField, records, save }
           <div style={{ display:"flex", gap:8, marginTop:4, alignItems:"center" }}>
             {r.fecha_partido && <span style={{ fontSize:10, color:C.dim }}>{r.fecha_partido}</span>}
             {cuota > 0 && <span style={{ fontSize:11, color:cat.color, fontWeight:700 }}>#{cuota.toFixed(2)}</span>}
+            {r.casa && <span style={{ fontSize:10, color:C.dim }}>{r.casa}</span>}
             <span style={{ fontSize:10, fontWeight:700, color: r.resultado==="GANADA"?"#10B981":r.resultado==="PERDIDA"?"#EF4444":r.resultado==="ANULADA"?"#6B7280":"#F59E0B" }}>
               {r.resultado==="PENDIENTE" ? "⏳" : r.resultado==="GANADA" ? "✅" : r.resultado==="PERDIDA" ? "❌" : "🚫"} {r.resultado||"PENDIENTE"}
             </span>
@@ -301,7 +302,7 @@ function TransaccionCard({ r, onResult, onDelete, onUpdateField, records, save }
             <div style={{ fontSize:11, color:C.dim, marginBottom:6 }}>Categoría</div>
             <div style={{ display:"flex", gap:6 }}>
               {CATEGORIAS.map(c => (
-                <button key={c.id} onClick={async e => { e.stopPropagation(); const u=records.map(rec=>rec.id!==r.id?rec:{...rec,categoria:c.id}); await save(u); }}
+                <button key={c.id} onClick={async e => { e.stopPropagation(); const u=records.map(rec=>rec.id!==r.id?rec:{...rec,categoria:c.id}); await save(u); onUpdateField?.(r.id, { categoria: c.id }); }}
                   style={{ flex:1, padding:"6px 4px", borderRadius:8, border:`1.5px solid ${r.categoria===c.id?c.color:C.border}`, background:r.categoria===c.id?c.bg:"transparent", cursor:"pointer", fontSize:11, fontWeight:700, color:r.categoria===c.id?c.color:C.muted }}>
                   {c.icon} {c.label}
                 </button>
@@ -317,7 +318,7 @@ function TransaccionCard({ r, onResult, onDelete, onUpdateField, records, save }
                 {[{key:r.mercado_1,cuota:r.cuota_1},{key:r.mercado_2,cuota:r.cuota_2},{key:r.mercado_3,cuota:r.cuota_3}]
                   .filter(m=>m.key&&m.key!=="—")
                   .map((m,i)=>(
-                    <button key={m.key} onClick={async e=>{ e.stopPropagation(); const u=records.map(rec=>rec.id!==r.id?rec:{...rec,apuesta_jugada:m.key,cuota_jugada:m.cuota}); await save(u); }}
+                    <button key={m.key} onClick={async e=>{ e.stopPropagation(); const u=records.map(rec=>rec.id!==r.id?rec:{...rec,apuesta_jugada:m.key,cuota_jugada:m.cuota}); await save(u); onUpdateField?.(r.id, { mercado: m.key, cuota: m.cuota }); }}
                       style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"7px 10px", borderRadius:6, border:`1px solid ${r.apuesta_jugada===m.key?C.accent:C.border}`, background:r.apuesta_jugada===m.key?C.accent+"22":"transparent", cursor:"pointer" }}>
                       <span style={{ fontSize:12, color:r.apuesta_jugada===m.key?C.accent:C.muted }}>#{i+1} {m.key}</span>
                       <span style={{ fontSize:13, fontWeight:700, color:C.accent }}>x{(m.cuota||0).toFixed(2)}</span>
@@ -335,10 +336,27 @@ function TransaccionCard({ r, onResult, onDelete, onUpdateField, records, save }
               <input type="number" step="0.01" min="0" value={r.monto_apostado||""} placeholder="0.00"
                 onClick={e=>e.stopPropagation()}
                 onChange={async e=>{ const u=records.map(rec=>rec.id!==r.id?rec:{...rec,monto_apostado:e.target.value}); await save(u); }}
+                onBlur={e=>onUpdateField?.(r.id, { monto_apostado: parseFloat(e.target.value)||0 })}
                 style={{ background:C.card3, border:`1px solid ${C.border}`, borderRadius:6, padding:"5px 8px 5px 20px", color:C.text, fontSize:12, width:"100%", outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} />
             </div>
             {gan !== null && monto > 0 && (
               <span style={{ fontSize:14, fontWeight:800, color:amtColor }}>{amtStr}</span>
+            )}
+          </div>
+
+          {/* Cuota de cierre (CLV): editable siempre — el cierre se anota
+              cuando se conoce, antes o despues de resolver el pick. */}
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:12 }}>
+            <span style={{ fontSize:11, color:C.dim, whiteSpace:"nowrap" }}>Cuota de cierre</span>
+            <input type="number" step="0.01" min="1" value={r.cuota_cierre||""} placeholder="—"
+              onClick={e=>e.stopPropagation()}
+              onChange={async e=>{ const u=records.map(rec=>rec.id!==r.id?rec:{...rec,cuota_cierre:e.target.value}); await save(u); }}
+              onBlur={e=>onUpdateField?.(r.id, { cuota_cierre: parseFloat(e.target.value)||null })}
+              style={{ background:C.card3, border:`1px solid ${C.border}`, borderRadius:6, padding:"5px 8px", color:C.text, fontSize:12, width:80, outline:"none", boxSizing:"border-box", fontFamily:"inherit" }} />
+            {cuota > 0 && parseFloat(r.cuota_cierre) > 1 && (
+              <span style={{ fontSize:11, fontWeight:700, color:(cuota/parseFloat(r.cuota_cierre)-1)>=0?"#10B981":"#EF4444" }}>
+                CLV {((cuota/parseFloat(r.cuota_cierre)-1)*100).toFixed(1)}%
+              </span>
             )}
           </div>
 
@@ -714,13 +732,13 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
   );
 };
 
-function Historial() {
+function Historial({ user, banca }) {
   const [records, setRecords]   = useState([]);
   const [loaded, setLoaded]     = useState(false);
   const [filtro, setFiltro]     = useState("TODOS");
   const [exporting, setExporting] = useState(false);
   const [showAdd, setShowAdd]   = useState(false);
-  const [form, setForm]         = useState({ partido:"", mercado:"", cuota:"", resultado:"PENDIENTE", fecha:"", categoria:"premium" });
+  const [form, setForm]         = useState({ partido:"", mercado:"", cuota:"", stake:"", casa:"", cierre:"", resultado:"PENDIENTE", fecha:"", categoria:"premium" });
 
   const loadFromStorage = () => {
     try {
@@ -735,11 +753,62 @@ function Historial() {
     setLoaded(true);
   };
 
+  // Historial pro (13-sep): con sesion, la NUBE manda y localStorage es
+  // espejo. Merge de estreno: los registros solo-locales se suben una
+  // vez, y lo local RESUELTO pisa una fila de nube aun PENDIENTE (la
+  // deuda diagnostica: la nube quedo congelada mientras los resultados
+  // se marcaban solo en este dispositivo) sincronizandola de vuelta.
+  // Sin sesion, todo sigue local como siempre.
   useEffect(() => {
-    loadFromStorage();
+    let vivo = true;
+    const userId = user?.id;
+    (async () => {
+      if (userId) {
+        const nube = await loadHistorialSupabase(userId);
+        if (nube && vivo) {
+          let locales = [];
+          try { locales = JSON.parse(localStorage.getItem("betscore_historial") || "[]"); } catch {}
+          const idsNube = new Set(nube.map(r => r.id));
+          // Lapidas-lite: los ids que ESTE dispositivo ya vio en la nube.
+          // Un registro en el espejo, visto antes en la nube y hoy ausente
+          // = borrado en otro dispositivo → se suelta, no se resucita.
+          let vistosNube = [];
+          try { vistosNube = JSON.parse(localStorage.getItem("betscore_historial_nube_ids") || "[]"); } catch {}
+          const vistosSet = new Set(vistosNube);
+          const soloLocales = locales.filter(r => !idsNube.has(r.id) && !vistosSet.has(r.id));
+          for (const r of soloLocales) saveHistorialSupabase(userId, r);
+          const fusionados = nube.map(r => {
+            const loc = locales.find(l => l.id === r.id);
+            if (!loc) return r;
+            if (r.resultado === "PENDIENTE" && loc.resultado && loc.resultado !== "PENDIENTE") {
+              const rec = { ...r, resultado: loc.resultado, monto_apostado: loc.monto_apostado, ganancia_unidades: loc.ganancia_unidades, cuota_cierre: loc.cuota_cierre ?? r.cuota_cierre };
+              updateHistorialSupabase(userId, r.id, { resultado: rec.resultado, monto_apostado: parseFloat(rec.monto_apostado) || 0, ganancia: rec.ganancia_unidades ?? null, cuota_cierre: parseFloat(rec.cuota_cierre) > 1 ? parseFloat(rec.cuota_cierre) : null });
+              return rec;
+            }
+            // La nube manda, pero se conservan del registro local los
+            // campos SIN columna en la nube: probs/bajas y el mercado
+            // jugado elegido (el selector legado) — sin esto, el merge
+            // pisaria la eleccion con el mercado #1 en cada montaje.
+            return { ...loc, ...r, apuesta_jugada: loc.apuesta_jugada ?? r.apuesta_jugada, cuota_jugada: loc.cuota_jugada ?? r.cuota_jugada };
+          });
+          const todos = [...fusionados, ...soloLocales].sort((a, b) => (b.id || 0) - (a.id || 0));
+          try {
+            localStorage.setItem("betscore_historial", JSON.stringify(todos));
+            localStorage.setItem("betscore_historial_nube_ids", JSON.stringify([...idsNube, ...soloLocales.map(r => r.id)]));
+          } catch {}
+          setRecords(todos);
+          setLoaded(true);
+          return;
+        }
+      }
+      if (vivo) loadFromStorage();
+    })();
     window.addEventListener("storage", loadFromStorage);
-    return () => window.removeEventListener("storage", loadFromStorage);
-  }, []);
+    return () => { vivo = false; window.removeEventListener("storage", loadFromStorage); };
+    // user?.id y NO user: cada evento de auth (token refresh ~1h) entrega
+    // un objeto user NUEVO con el mismo id — con [user] el merge completo
+    // se repetiria cada hora y podria pisar ediciones a medio teclear.
+  }, [user?.id]);
 
   const save = async (newRecs) => {
     const sorted = [...newRecs].sort((a, b) => (b.id || 0) - (a.id || 0));
@@ -747,20 +816,28 @@ function Historial() {
     setRecords(sorted);
   };
 
+  // Sync de campos sueltos (stake, cierre, categoria) a la nube. El
+  // espejo local ya lo escribio save(); esto es fire-and-forget.
+  const syncCampo = (id, patch) => { if (user) updateHistorialSupabase(user.id, id, patch); };
+
   const updateResult = async (id, resultado) => {
+    let patch = null;
     const updated = records.map(r => {
       if (r.id !== id) return r;
       const cuota = r.cuota_jugada||r.cuota_1||1;
       const monto = parseFloat(r.monto_apostado)||0;
       const ganancia = resultado==="GANADA" ? parseFloat((monto*(cuota-1)).toFixed(2)) : resultado==="PERDIDA" ? -monto : 0;
+      patch = { resultado, ganancia };
       return { ...r, resultado, ganancia_unidades: ganancia };
     });
     await save(updated);
+    if (user && patch) updateHistorialSupabase(user.id, id, patch);
   };
 
   const deleteRecord = async (id) => {
     if (!window.confirm("¿Eliminar este registro?")) return;
     await save(records.filter(r => r.id !== id));
+    if (user) deleteHistorialSupabase(user.id, id);
   };
 
   // ── EXPORTAR EXCEL (XML SpreadsheetML) ────────────────────────────
@@ -780,7 +857,11 @@ function Historial() {
       },0);
       const wRnum=closed.length>0?(won.length/closed.length)*100:null;
       const wR=wRnum!==null?wRnum.toFixed(1):null;
-      const yld=totalApostado>0?((gNet/totalApostado)*100).toFixed(1):null;
+      // Mismo denominador que el YIELD del dashboard (apostado en
+      // RESUELTAS): antes el Excel dividia tambien entre stakes de
+      // pendientes/anuladas y las dos cifras discrepaban.
+      const apostadoCerradas=closed.reduce((s,r)=>s+(parseFloat(r.monto_apostado)||0),0);
+      const yld=apostadoCerradas>0?((gNet/apostadoCerradas)*100).toFixed(1):null;
       const esc=v=>String(v??'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/[\u{1F000}-\u{1FFFF}]/gu,'').replace(/[\u2600-\u27BF]/gu,'').trim();
       const sid=res=>({GANADA:'wC',PERDIDA:'lC',ANULADA:'aC',PENDIENTE:'pC'}[res]||'pC');
       const sidL=res=>({GANADA:'wL',PERDIDA:'lL',ANULADA:'aL',PENDIENTE:'pL'}[res]||'pL');
@@ -868,6 +949,32 @@ function Historial() {
   const totalIngresos = won.reduce((s,r)=>{const m=parseFloat(r.monto_apostado)||0,c=r.cuota_jugada||r.cuota_1||1;return s+m*(c-1);},0);
   const totalGastos   = lost.reduce((s,r)=>s+(parseFloat(r.monto_apostado)||0),0);
 
+  // ── KPIs pro (13-sep). Todo a prueba de vacios: sin resueltas o sin
+  // stake, "—" — jamas NaN ni division por cero.
+  const apostadoResueltas = closed.reduce((s,r)=>s+(parseFloat(r.monto_apostado)||0),0);
+  const yieldPct = apostadoResueltas > 0 ? (gNet / apostadoResueltas) * 100 : null;
+  const conStake = records.filter(r=>(parseFloat(r.monto_apostado)||0)>0);
+  const stakeMedio = conStake.length ? conStake.reduce((s,r)=>s+parseFloat(r.monto_apostado),0)/conStake.length : null;
+  // CLV medio SOLO con muestra: menos de 5 cierres es anecdota y no se
+  // muestra (misma doctrina que la muestra minima del arbitro).
+  const conCierre = records.filter(r=>{
+    const c=r.cuota_jugada||r.cuota_1||0, cc=parseFloat(r.cuota_cierre)||0;
+    return c>0 && cc>1;
+  });
+  const clvMedio = conCierre.length >= 5
+    ? conCierre.reduce((s,r)=>{const c=r.cuota_jugada||r.cuota_1, cc=parseFloat(r.cuota_cierre); return s+((c/cc)-1)*100;},0)/conCierre.length
+    : null;
+  // Profit acumulado en orden de registro (id = Date.now del alta:
+  // cronologico y ordenable; las fechas guardadas son strings es-CO).
+  const serieAcumulada = (() => {
+    let acc = 0;
+    return [...closed].sort((a,b)=>(a.id||0)-(b.id||0)).map(r=>{
+      const m=parseFloat(r.monto_apostado)||0, c=r.cuota_jugada||r.cuota_1||1;
+      acc += r.resultado==="GANADA" ? m*(c-1) : -m;
+      return { fecha: r.fecha_partido || r.fecha_analisis || "", acumulado: Number(acc.toFixed(2)) };
+    });
+  })();
+
   // Agrupar por fecha
   const filtrados = filtro==="TODOS" ? records : records.filter(r=>r.resultado===filtro);
   const porFecha = {};
@@ -892,7 +999,10 @@ function Historial() {
           <div style={{ fontSize:36, fontWeight:900, color:gNet>=0?"#10B981":"#EF4444", letterSpacing:"-.02em" }}>
             {gNet>=0?"+":""}{totalApostado>0?`$${gNet.toFixed(2)}`:"$0.00"}
           </div>
-          <div style={{ fontSize:12, color:C.dim, marginTop:4 }}>{records.length} apuestas · {closed.length} cerradas{winRate?` · ${winRate}% acierto`:""}</div>
+          <div style={{ fontSize:12, color:C.dim, marginTop:4 }}>
+            {records.length === 0 ? "aún sin apuestas registradas" : closed.length === 0 ? `${records.length} apuestas · aún sin apuestas resueltas` : `${records.length} apuestas · ${closed.length} resueltas${winRate?` · ${winRate}% acierto`:""}`}
+            {banca > 0 ? ` · Banca $${Number(banca).toFixed(0)}` : ""}
+          </div>
         </div>
         {/* Ingresos / Gastos */}
         <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:1, background:C.border }}>
@@ -920,6 +1030,33 @@ function Historial() {
             </div>
           ))}
         </div>
+        {/* KPIs pro: yield, stake medio y CLV (este solo con ≥5 cierres) */}
+        <div style={{ display:"grid", gridTemplateColumns:`repeat(${clvMedio!=null?3:2},1fr)`, gap:1, background:C.border, borderTop:`1px solid ${C.border}` }}>
+          {[
+            ["YIELD", yieldPct!=null?`${yieldPct>=0?"+":""}${yieldPct.toFixed(1)}%`:"—", yieldPct==null?C.muted:yieldPct>=0?"#10B981":"#EF4444"],
+            ["STAKE MEDIO", stakeMedio!=null?`$${stakeMedio.toFixed(2)}`:"—", C.blue],
+            ...(clvMedio!=null?[["CLV MEDIO", `${clvMedio>=0?"+":""}${clvMedio.toFixed(1)}%`, clvMedio>=0?"#10B981":"#EF4444"]]:[]),
+          ].map(([l,v,c])=>(
+            <div key={l} style={{ background:C.card, padding:"10px", textAlign:"center" }}>
+              <div style={{ fontSize:16, fontWeight:800, color:c }}>{v}</div>
+              <div style={{ fontSize:9, color:C.dim, marginTop:2, letterSpacing:".05em" }}>{l}</div>
+            </div>
+          ))}
+        </div>
+        {/* Profit acumulado: solo con resueltas — el vacio no dibuja */}
+        {serieAcumulada.length > 1 && (
+          <div style={{ background:C.card, padding:"12px 4px 2px", borderTop:`1px solid ${C.border}` }}>
+            <div style={{ fontSize:9, color:C.dim, letterSpacing:".05em", margin:"0 0 4px 14px" }}>PROFIT ACUMULADO</div>
+            <ResponsiveContainer width="100%" height={110}>
+              <LineChart data={serieAcumulada} margin={{ top: 4, right: 10, left: 10, bottom: 0 }}>
+                <XAxis dataKey="fecha" hide />
+                <YAxis hide domain={["auto", "auto"]} />
+                <Tooltip contentStyle={{ background:C.card2, border:`1px solid ${C.border}`, borderRadius:8, fontSize:11 }} formatter={(v)=>[`$${v}`, "Acumulado"]} />
+                <Line type="monotone" dataKey="acumulado" stroke={gNet>=0?"#10B981":"#EF4444"} strokeWidth={2} dot={false} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        )}
       </div>
 
       {/* ACCIONES */}
@@ -928,7 +1065,7 @@ function Historial() {
           {exporting?"Exportando...":"📥 Exportar Excel"}
         </button>
         <button onClick={()=>setShowAdd(!showAdd)} style={{ flex:1, background:C.accent, color:"#000", border:"none", borderRadius:8, padding:"11px", fontWeight:800, fontSize:13, cursor:"pointer" }}>
-          {showAdd?"✕ Cancelar":"+ Manual"}
+          {showAdd?"✕ Cancelar":"+ Registrar apuesta"}
         </button>
       </div>
 
@@ -948,6 +1085,15 @@ function Historial() {
             <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Partido *</div><input style={inputS} value={form.partido} onChange={e=>setForm(f=>({...f,partido:e.target.value}))} placeholder="Local vs Visitante"/></div>
             <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Mercado</div><input style={inputS} value={form.mercado} onChange={e=>setForm(f=>({...f,mercado:e.target.value}))} placeholder="Over 2.5 Goles"/></div>
             <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Cuota *</div><input style={inputS} type="number" step="0.01" value={form.cuota} onChange={e=>setForm(f=>({...f,cuota:e.target.value}))} placeholder="1.75"/></div>
+            <div>
+              <div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Stake $ *</div>
+              <input style={inputS} type="number" step="0.01" min="0" value={form.stake} onChange={e=>setForm(f=>({...f,stake:e.target.value}))} placeholder="10.00"/>
+              {parseFloat(form.stake)>0 && banca>0 && (
+                <div style={{ fontSize:10, color:C.dim, marginTop:2 }}>{((parseFloat(form.stake)/banca)*100).toFixed(1)}% de la banca (${Number(banca).toFixed(0)})</div>
+              )}
+            </div>
+            <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Casa (opcional)</div><input style={inputS} value={form.casa} onChange={e=>setForm(f=>({...f,casa:e.target.value}))} placeholder="Bet365"/></div>
+            <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Cuota de cierre (opcional)</div><input style={inputS} type="number" step="0.01" value={form.cierre} onChange={e=>setForm(f=>({...f,cierre:e.target.value}))} placeholder="1.68"/></div>
             <div><div style={{ fontSize:11, color:C.muted, marginBottom:4 }}>Fecha</div><input style={inputS} value={form.fecha} onChange={e=>setForm(f=>({...f,fecha:e.target.value}))} placeholder="DD/MM/YYYY"/></div>
           </div>
           <div style={{ display:"flex", gap:6, marginBottom:10 }}>
@@ -958,14 +1104,16 @@ function Historial() {
             ))}
           </div>
           <button onClick={async()=>{
-            if(!form.partido||!form.cuota) return;
-            const cuota=parseFloat(form.cuota), monto=0;
-            const ganancia=form.resultado==="GANADA"?monto*(cuota-1):form.resultado==="PERDIDA"?-monto:0;
-            const newRec={id:Date.now(),partido:form.partido,mercado_1:form.mercado,apuesta_jugada:form.mercado,cuota_1:cuota,cuota_jugada:cuota,resultado:form.resultado,ganancia_unidades:ganancia,fecha_analisis:form.fecha||new Date().toLocaleDateString("es-CO"),fecha_partido:form.fecha||"",categoria:form.categoria||"premium"};
+            const cuota=parseFloat(form.cuota), monto=parseFloat(form.stake);
+            // Validacion del registro pro: cuota real y stake real.
+            if(!form.partido||!(cuota>1.01)||!(monto>0)) return;
+            const ganancia=form.resultado==="GANADA"?parseFloat((monto*(cuota-1)).toFixed(2)):form.resultado==="PERDIDA"?-monto:0;
+            const newRec={id:Date.now(),partido:form.partido,mercado_1:form.mercado,apuesta_jugada:form.mercado,cuota_1:cuota,cuota_jugada:cuota,resultado:form.resultado,ganancia_unidades:ganancia,monto_apostado:monto,casa:form.casa.trim()||null,cuota_cierre:parseFloat(form.cierre)>1?parseFloat(form.cierre):null,es_manual:true,fecha_analisis:form.fecha||new Date().toLocaleDateString("es-CO"),fecha_partido:form.fecha||"",categoria:form.categoria||"premium"};
             await save([newRec,...records]);
-            setForm({partido:"",mercado:"",cuota:"",resultado:"PENDIENTE",fecha:"",categoria:"premium"});
+            if (user) saveHistorialSupabase(user.id, newRec);
+            setForm({partido:"",mercado:"",cuota:"",stake:"",casa:"",cierre:"",resultado:"PENDIENTE",fecha:"",categoria:"premium"});
             setShowAdd(false);
-          }} disabled={!form.partido||!form.cuota} style={{ width:"100%", background:"linear-gradient(135deg,#16a34a,#22c55e)", color:"#fff", border:"none", borderRadius:7, boxShadow:"0 4px 15px rgba(34,197,94,0.35)", padding:"10px", fontWeight:800, fontSize:13, cursor:"pointer" }}>
+          }} disabled={!form.partido||!(parseFloat(form.cuota)>1.01)||!(parseFloat(form.stake)>0)} style={{ width:"100%", background:(!form.partido||!(parseFloat(form.cuota)>1.01)||!(parseFloat(form.stake)>0))?C.dim:"linear-gradient(135deg,#16a34a,#22c55e)", color:"#fff", border:"none", borderRadius:7, boxShadow:"0 4px 15px rgba(34,197,94,0.35)", padding:"10px", fontWeight:800, fontSize:13, cursor:"pointer" }}>
             Guardar
           </button>
         </div>
@@ -1007,6 +1155,7 @@ function Historial() {
                           key={r.id} r={r}
                           onResult={updateResult}
                           onDelete={deleteRecord}
+                          onUpdateField={syncCampo}
                           records={records}
                           save={save}
                         />
@@ -1065,6 +1214,11 @@ export default function BetFutProV3() {
     if (!supabase) return;
     const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
     setProfile(data);
+    // Banca persistente (13-sep): una sola banca para todas las pantallas,
+    // vive en profiles.banca. Sin fila o sin columna, el 1000 de siempre.
+    // Number.isFinite y NO "|| 1000": una banca guardada en 0 es una
+    // decision del usuario y debe volver como 0, no resucitar en 1000.
+    if (data && data.banca != null && Number.isFinite(Number(data.banca))) setBank(Number(data.banca));
   };
   const [bank, setBank] = useState(1000);
   const [savedAnalysis, setSavedAnalysis] = useState(null);
@@ -1775,7 +1929,7 @@ export default function BetFutProV3() {
 
       <div style={{ maxWidth: 920, margin: "0 auto", padding: "24px 16px" }}>
 
-        {mainTab === "historial" && <Historial />}
+        {mainTab === "historial" && <Historial user={user} banca={bank} />}
 
         {mainTab === "analizar" && (
           <>
@@ -1935,6 +2089,7 @@ export default function BetFutProV3() {
                             type="number"
                             value={bank || ""}
                             onChange={e => setBank(parseFloat(e.target.value) || 0)}
+                            onBlur={() => { if (user) saveBanca(user.id, bank); }}
                             onFocus={e => e.target.select()}
                             min="0"
                             style={{ flex: 1, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 6, padding: "7px 10px", color: C.text, fontSize: 13, fontWeight: 600 }}

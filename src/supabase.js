@@ -147,6 +147,19 @@ export const checkAndIncrementAnalysis = async (userId) => {
 }
 
 // ── Historial helpers ─────────────────────────────────────
+// Historial pro (13-sep-2026): en la BD el canonico es `estado`
+// (minusculas, con CHECK); el cliente conserva su dialecto `resultado`
+// (MAYUSCULAS) para no reescribir filtros/Excel/colores. Esta capa
+// traduce en ambos sentidos y escribe los dos campos en paralelo.
+const R2E = { GANADA: 'ganada', PERDIDA: 'perdida', ANULADA: 'nula', PENDIENTE: 'pendiente' }
+const E2R = { ganada: 'GANADA', perdida: 'PERDIDA', nula: 'ANULADA', pendiente: 'PENDIENTE' }
+
+// Los numericos se SANEAN aqui: el espejo local guarda strings crudos de
+// los inputs (incluida la cadena vacia al borrar un campo) y un "" contra
+// una columna numeric es un 400 silencioso que dejaria la fila sin
+// sincronizar para siempre.
+const num = (v) => { const n = parseFloat(v); return Number.isFinite(n) ? n : null }
+
 export const saveHistorialSupabase = async (userId, record) => {
   if (!supabase || !userId) return false
   const { error } = await supabase.from('historial').upsert({
@@ -161,28 +174,43 @@ export const saveHistorialSupabase = async (userId, record) => {
     fecha_partido:  record.fecha_partido,
     mercado:        record.mercado_1,
     descripcion:    record.desc_1,
-    cuota:          record.cuota_1,
-    ev:             record.ev_1,
+    cuota:          num(record.cuota_1),
+    ev:             num(record.ev_1) ?? 0,
     confianza:      String(record.confianza_1),
     fuente:         record.fuente_1,
     resultado:      record.resultado,
-    monto_apostado: record.monto_apostado,
-    ganancia:       record.ganancia_unidades,
+    estado:         R2E[record.resultado] || 'pendiente',
+    monto_apostado: num(record.monto_apostado) ?? 0,
+    ganancia:       record.ganancia_unidades == null ? null : num(record.ganancia_unidades),
     categoria:      record.categoria,
+    cuota_cierre:   num(record.cuota_cierre) > 1 ? num(record.cuota_cierre) : null,
+    casa:           record.casa || null,
+    es_manual:      Boolean(record.es_manual),
   })
   return !error
 }
 
 export const loadHistorialSupabase = async (userId) => {
   if (!supabase || !userId) return null
-  const { data, error } = await supabase
-    .from('historial')
-    .select('*')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(200)
-  if (error) return null
-  return data?.map(r => ({
+  // Paginado hasta pagina corta: un tope fijo (antes 200) hacia que las
+  // filas viejas de la nube parecieran "solo locales" en el merge y se
+  // re-subieran con copias rancias del espejo — la fuente de verdad
+  // invertida en silencio. Leccion del techo de PostgREST de la sonda.
+  const data = []
+  for (let desde = 0; ; desde += 500) {
+    const { data: pagina, error } = await supabase
+      .from('historial')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .range(desde, desde + 499)
+    // Error a mitad de paginado = lectura INCOMPLETA: null y el caller no
+    // hace merge (mejor no fusionar que fusionar con media nube).
+    if (error) return null
+    data.push(...(pagina || []))
+    if (!pagina || pagina.length < 500) break
+  }
+  return data.map(r => ({
     id:               r.id,
     fecha_analisis:   r.fecha_analisis,
     hora_analisis:    r.hora_analisis,
@@ -194,12 +222,45 @@ export const loadHistorialSupabase = async (userId) => {
     mercado_1:        r.mercado,
     desc_1:           r.descripcion,
     cuota_1:          r.cuota,
+    // La UI vieja calcula con cuota_jugada/apuesta_jugada: se espejan.
+    cuota_jugada:     r.cuota,
+    apuesta_jugada:   r.mercado,
     ev_1:             r.ev,
     confianza_1:      r.confianza,
     fuente_1:         r.fuente,
-    resultado:        r.resultado,
+    resultado:        E2R[r.estado] || r.resultado || 'PENDIENTE',
     monto_apostado:   r.monto_apostado,
     ganancia_unidades: r.ganancia,
     categoria:        r.categoria,
-  })) || []
+    cuota_cierre:     r.cuota_cierre,
+    casa:             r.casa,
+    es_manual:        r.es_manual,
+  }))
+}
+
+// Resolver un pick, editar stake/cierre/casa/categoria: UPDATE de fila
+// propia (exige la politica de la migracion 2026-09-13). El patch llega
+// en dialecto del cliente y aqui se le suma el estado canonico.
+export const updateHistorialSupabase = async (userId, id, patch) => {
+  if (!supabase || !userId) return false
+  const p = { ...patch }
+  if (p.resultado) p.estado = R2E[p.resultado] || 'pendiente'
+  const { error } = await supabase.from('historial')
+    .update(p).eq('id', id).eq('user_id', userId)
+  return !error
+}
+
+export const deleteHistorialSupabase = async (userId, id) => {
+  if (!supabase || !userId) return false
+  const { error } = await supabase.from('historial')
+    .delete().eq('id', id).eq('user_id', userId)
+  return !error
+}
+
+// ── Banca persistente (profiles.banca) ────────────────────
+export const saveBanca = async (userId, banca) => {
+  if (!supabase || !userId) return false
+  const { error } = await supabase.from('profiles')
+    .update({ banca: Number(banca) || 0 }).eq('id', userId)
+  return !error
 }
