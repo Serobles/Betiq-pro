@@ -76,13 +76,24 @@ const iconoMercado = (nombre) => {
 
 
 // ── Calcular stake sugerido según EV y confianza ──────────────────────
+// Escala del manual del metodo (14-sep): banda habitual 0,5%-2,5% de la
+// banca segun confianza/EV; el tope absoluto del manual es 5% y esta
+// tabla no lo alcanza a proposito (2,5% es el maximo alcanzable, la
+// "excepcion extrema" queda fuera del automatismo). Banda CERO: un
+// mercado sin ventaja (EV <= 0) no recibe stake — sin valor no se
+// apuesta, aunque la tarjeta lo liste en el top 3.
+const STAKE_MAX_PCT = 2.5;   // manual: habitual 0,5-2,5%; tope absoluto 5%
 const calcStake = (ev, confianza) => {
-  const e = parseFloat(ev) || 0;
+  const e = parseFloat(ev);
   const c = parseFloat(confianza) || 0;
-  if (e >= 0.15 && c >= 70) return { pct: 4.0, label: "ALTO",   color: "#04e872", desc: "Confianza máxima" };
-  if (e >= 0.10 && c >= 60) return { pct: 3.0, label: "MEDIO",  color: "#22c55e", desc: "Buena confianza" };
-  if (e >= 0.05 && c >= 50) return { pct: 2.0, label: "NORMAL", color: "#f59e0b", desc: "Confianza moderada" };
-  return                          { pct: 1.5, label: "BAJO",   color: "#f87171", desc: "Apuesta cautelosa" };
+  // EV AUSENTE no es EV negativo: sin dato no se afirma "sin ventaja",
+  // se sugiere el minimo del manual.
+  if (!Number.isFinite(e))  return { pct: 0.5, label: "BAJO", color: "#f87171", desc: "EV sin dato: mínimo del manual" };
+  if (e <= 0)              return { pct: 0,             label: "SIN VALOR", color: "#6B7280", desc: "Sin ventaja: no se apuesta" };
+  if (c > 70 && e >= 0.10) return { pct: STAKE_MAX_PCT, label: "ALTO",      color: "#04e872", desc: "Confianza máxima del método" };
+  if (c > 70)              return { pct: 2.0,           label: "NORMAL",    color: "#22c55e", desc: "Alta confianza" };
+  if (c >= 55)             return { pct: e >= 0.10 ? 2.0 : 1.5, label: "NORMAL", color: "#f59e0b", desc: "Confianza media" };
+  return                          { pct: e >= 0.10 ? 1.0 : 0.5, label: "BAJO",   color: "#f87171", desc: "Apuesta mínima" };
 };
 
 const PIE_COLORS = ["#10b981", "#f59e0b", "#ef4444"];
@@ -186,8 +197,8 @@ function MercadoCard({ m, partido, rank, bank = 0, onGuardar, guardadoId }) {
         const monto = ((bank * sk.pct) / 100).toFixed(2);
         return (
           <div style={{ marginTop: 8, display: "flex", justifyContent: "space-between", alignItems: "center", background: `${sk.color}11`, border: `1px solid ${sk.color}33`, borderRadius: 6, padding: "6px 10px" }}>
-            <span style={{ fontSize: 11, color: sk.color, fontWeight: 700 }}>💰 Stake: {sk.pct}%</span>
-            <span style={{ fontSize: 13, color: sk.color, fontWeight: 900 }}>${monto}</span>
+            <span style={{ fontSize: 11, color: sk.color, fontWeight: 700 }}>{sk.pct === 0 ? `🚫 ${sk.desc}` : `💰 Stake: ${sk.pct}%`}</span>
+            <span style={{ fontSize: 13, color: sk.color, fontWeight: 900 }}>{sk.pct === 0 ? "$0" : `$${monto}`}</span>
           </div>
         );
       })()}
@@ -2072,15 +2083,15 @@ export default function BetFutProV3() {
                         <div style={{ fontSize: 10, color: C.muted, fontWeight: 700, letterSpacing: 1, marginBottom: 10 }}>💰 STAKE SUGERIDO</div>
                         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                            <div style={{ fontSize: 36, fontWeight: 900, color: sk.color, lineHeight: 1 }}>{sk.pct}%</div>
+                            <div style={{ fontSize: 36, fontWeight: 900, color: sk.color, lineHeight: 1 }}>{sk.pct === 0 ? "🚫" : `${sk.pct}%`}</div>
                             <div>
                               <div style={{ fontSize: 12, fontWeight: 800, color: sk.color }}>{sk.label}</div>
                               <div style={{ fontSize: 11, color: C.muted }}>{sk.desc}</div>
                             </div>
                           </div>
                           <div style={{ textAlign: "right" }}>
-                            <div style={{ fontSize: 28, fontWeight: 900, color: sk.color }}>${monto}</div>
-                            <div style={{ fontSize: 11, color: C.dim }}>de tu bank actual</div>
+                            <div style={{ fontSize: 28, fontWeight: 900, color: sk.color }}>{sk.pct === 0 ? "$0" : `$${monto}`}</div>
+                            <div style={{ fontSize: 11, color: C.dim }}>{sk.pct === 0 ? "no se apuesta" : "de tu bank actual"}</div>
                           </div>
                         </div>
                         <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10 }}>

@@ -21,7 +21,27 @@ El JSON tiene exactamente esta estructura (reemplaza los valores de ejemplo con 
 {"partido":{"local":"EQUIPO_LOCAL","visitante":"EQUIPO_VISITANTE","competicion":"LIGA","fecha":"FECHA","estadio":"ESTADIO"},"mercados_analizados":[{"nombre":"1X2 Victoria Local","descripcion":"gana el equipo local","cuota":1.45,"cuota_fuente":"Bet365","prob_real":72,"prob_implicita":69,"ev":0.04,"nivel_confianza":70,"recomendado":false,"ranking":6,"razon":"cuota sin valor suficiente"},{"nombre":"Doble Oportunidad 1X","descripcion":"local gana o empata","cuota":1.20,"cuota_fuente":"Bet365","prob_real":85,"prob_implicita":83,"ev":0.02,"nivel_confianza":82,"recomendado":false,"ranking":8,"razon":"sin valor por cuota baja"},{"nombre":"Draw No Bet Local","descripcion":"gana el local y si empatan devuelven la apuesta","cuota":1.35,"cuota_fuente":"Bet365","prob_real":78,"prob_implicita":74,"ev":0.05,"nivel_confianza":75,"recomendado":false,"ranking":5,"razon":"cubre el empate con valor moderado"},{"nombre":"Ambos Marcan Si","descripcion":"ambos equipos marcan","cuota":1.75,"cuota_fuente":"Bet365","prob_real":60,"prob_implicita":57,"ev":0.05,"nivel_confianza":60,"recomendado":false,"ranking":7,"razon":"valor moderado"},{"nombre":"Goles Over LINEA","descripcion":"mas goles que la linea que aparece en las cuotas reales","cuota":1.65,"cuota_fuente":"Bet365","prob_real":65,"prob_implicita":61,"ev":0.07,"nivel_confianza":63,"recomendado":true,"ranking":3,"razon":"buen promedio de goles de ambos"},{"nombre":"Goles Under LINEA","descripcion":"menos goles que la linea que aparece en las cuotas reales","cuota":2.10,"cuota_fuente":"Bet365","prob_real":35,"prob_implicita":48,"ev":-0.27,"nivel_confianza":35,"recomendado":false,"ranking":9,"razon":"sin valor"},{"nombre":"Handicap Asiatico Local LINEA","descripcion":"local con la linea de handicap que aparece en las cuotas reales","cuota":1.90,"cuota_fuente":"Bet365","prob_real":58,"prob_implicita":53,"ev":0.10,"nivel_confianza":65,"recomendado":true,"ranking":2,"razon":"buen valor por diferencia de nivel"},{"nombre":"Corners Over LINEA","descripcion":"mas corners que la linea que aparece en las cuotas reales","cuota":1.85,"cuota_fuente":"Bet365","prob_real":62,"prob_implicita":54,"ev":0.15,"nivel_confianza":68,"recomendado":true,"ranking":1,"razon":"mayor valor esperado del partido"},{"nombre":"Tarjetas Over LINEA","descripcion":"mas tarjetas que la linea que aparece en las cuotas reales","cuota":1.70,"cuota_fuente":"Bet365","prob_real":58,"prob_implicita":59,"ev":-0.01,"nivel_confianza":55,"recomendado":false,"ranking":4,"razon":"cuota ajustada al riesgo"}],"top_apuesta":{"nombre":"NOMBRE_DEL_MERCADO_CON_MAYOR_EV","descripcion":"descripcion del mercado elegido con su linea real","cuota":1.85,"cuota_fuente":"Bet365","prob_real":62,"prob_implicita":54,"ev":0.15,"nivel_confianza":68,"nivel_riesgo":"MEDIO","razon_ejecutiva":"Este mercado ofrece el mayor valor esperado del partido con probabilidad real superior a la implicita en la cuota."},"probabilidades_1x2":{"victoria_local":55,"empate":25,"victoria_visitante":20},"bajas":{"local":[{"nombre":"Jugador Ejemplo","posicion":"DC","es_titular":true}],"visitante":[]},"factores":{"forma_local":70,"forma_visitante":40,"presion_local":60,"motivacion_local":75,"motivacion_visitante":50,"cansancio_local":25,"cansancio_visitante":35},"puntos_clave":["El equipo local lleva 8 partidos invicto en casa","El visitante no gana fuera desde hace 5 jornadas","Diferencia de 20 puntos en la tabla"],"analisis_general":"El equipo local es favorito claro. El mercado de corners ofrece el mejor valor del encuentro."}
 ---JSON_END---
 
+PROCESO OBLIGATORIO (anti-anclaje): Estima prob_real de cada mercado UNICAMENTE desde los datos del partido (forma, tabla, bajas, descanso, altitud, arbitro), ANTES de considerar cualquier cuota; las cuotas se usan solo despues, para prob_implicita y EV. No ajustes tu probabilidad para acercarla a la implicita.
+
 INSTRUCCION FINAL: Copia exactamente esa estructura JSON pero con los datos REALES del partido. No uses comillas dobles dentro de los valores de texto. Usa solo letras, numeros, espacios y puntos en los campos de texto. Donde el nombre de un mercado incluya la palabra LINEA, sustituyela por la linea numerica EXACTA que aparezca en las CUOTAS CLAVE de los datos reales; nunca inventes una linea que no este en esas cuotas.`;
+
+// Mercados que el analisis necesita, con las lineas que interesan de
+// cada uno. Se seleccionan por NOMBRE, no por posicion en la respuesta:
+// la API devuelve ~99 mercados en orden arbitrario. A nivel de modulo
+// desde receta 6: football.js filtra con estos mismos nombres la linea
+// sharp de Pinnacle — una sola lista, cero copias.
+const MERCADOS_CLAVE = [
+  { etiqueta: "1X2",                nombres: ["Match Winner"],       lineas: ["Home", "Draw", "Away"] },
+  { etiqueta: "Doble Oportunidad",  nombres: ["Double Chance"],      lineas: ["Home/Draw", "Home/Away", "Draw/Away"] },
+  // API-Football publica el Draw No Bet bajo el nombre "Home/Away"
+  { etiqueta: "Draw No Bet",        nombres: ["Draw No Bet", "Home/Away"], lineas: ["Home", "Away"] },
+  { etiqueta: "Ambos Marcan",       nombres: ["Both Teams Score"],   lineas: ["Yes", "No"] },
+  { etiqueta: "Goles Over/Under",   nombres: ["Goals Over/Under"],   lineas: ["Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5"] },
+  { etiqueta: "Handicap Asiatico",  nombres: ["Asian Handicap"],     lineas: ["Home -0.5", "Away -0.5", "Home -0.25", "Away -0.25", "Home 0", "Away 0"] },
+  { etiqueta: "Corners Over/Under", nombres: ["Corners Over Under"], lineas: ["Over 8.5", "Under 8.5", "Over 9.5", "Under 9.5", "Over 10.5", "Under 10.5"] },
+  { etiqueta: "Tarjetas Over/Under", nombres: ["Cards Over/Under"],  lineas: ["Over 3.5", "Under 3.5", "Over 4.5", "Under 4.5", "Over 5.5", "Under 5.5"] },
+];
+export const NOMBRES_MERCADOS_CLAVE = new Set(MERCADOS_CLAVE.flatMap((m) => m.nombres));
 
 // ── Resumen estructurado con datos reales de API-Football ─────────────
 // f es el payload que devuelve el pipeline de football.js (encontrado=true).
@@ -31,32 +51,24 @@ export const construirSearchData = (f) => {
       ? lista.map(l => `${l.nombre} — ${l.motivo || "Lesionado"} (${l.estado || "Estado no informado"})`).join(", ")
       : "Sin lesionados confirmados en API-Football";
 
-  // Forma, tabla y promedios en una linea compacta por equipo
-  const formatStats = (s, pos) => {
+  // Forma, tabla y promedios en una linea compacta por equipo. El split
+  // (receta 6) es el desglose que /teams/statistics ya traia y se tiraba:
+  // casa para el local, fuera para el visitante — etiqueta clara.
+  const formatSplit = (sp, etiqueta) =>
+    sp && sp.jugados != null
+      ? `${etiqueta} PJ:${sp.jugados} G:${sp.ganados ?? 0} E:${sp.empatados ?? 0} P:${sp.perdidos ?? 0} GF:${sp.goles_favor ?? 0} GC:${sp.goles_contra ?? 0}`
+      : null;
+  const formatStats = (s, pos, split) => {
     if (!s && !pos) return "Sin datos estadisticos disponibles";
     return [
       `Pos:${pos?.pos ?? "N/D"} Pts:${pos?.pts ?? "N/D"} Forma:${s?.forma || pos?.forma || "N/D"}`,
       `PJ:${s?.partidos_jugados ?? 0} G:${s?.ganados ?? 0} E:${s?.empatados ?? 0} P:${s?.perdidos ?? 0}`,
       `GF:${s?.goles_favor ?? 0} GC:${s?.goles_contra ?? 0} (prom ${s?.promedio_goles_favor ?? "N/D"} a favor / ${s?.promedio_goles_contra ?? "N/D"} en contra)`,
+      split,
       `Racha max ${s?.mayor_racha_victorias ?? 0}V ${s?.mayor_racha_derrotas ?? 0}D`,
       `Goles 1a parte:${s?.goles_primer_tiempo ?? 0}`,
-    ].join(" | ");
+    ].filter(Boolean).join(" | ");
   };
-
-  // Mercados que el analisis necesita, con las lineas que interesan de
-  // cada uno. Se seleccionan por NOMBRE, no por posicion en la respuesta:
-  // la API devuelve ~99 mercados en orden arbitrario.
-  const MERCADOS_CLAVE = [
-    { etiqueta: "1X2",                nombres: ["Match Winner"],       lineas: ["Home", "Draw", "Away"] },
-    { etiqueta: "Doble Oportunidad",  nombres: ["Double Chance"],      lineas: ["Home/Draw", "Home/Away", "Draw/Away"] },
-    // API-Football publica el Draw No Bet bajo el nombre "Home/Away"
-    { etiqueta: "Draw No Bet",        nombres: ["Draw No Bet", "Home/Away"], lineas: ["Home", "Away"] },
-    { etiqueta: "Ambos Marcan",       nombres: ["Both Teams Score"],   lineas: ["Yes", "No"] },
-    { etiqueta: "Goles Over/Under",   nombres: ["Goals Over/Under"],   lineas: ["Over 1.5", "Under 1.5", "Over 2.5", "Under 2.5", "Over 3.5", "Under 3.5"] },
-    { etiqueta: "Handicap Asiatico",  nombres: ["Asian Handicap"],     lineas: ["Home -0.5", "Away -0.5", "Home -0.25", "Away -0.25", "Home 0", "Away 0"] },
-    { etiqueta: "Corners Over/Under", nombres: ["Corners Over Under"], lineas: ["Over 8.5", "Under 8.5", "Over 9.5", "Under 9.5", "Over 10.5", "Under 10.5"] },
-    { etiqueta: "Tarjetas Over/Under", nombres: ["Cards Over/Under"],  lineas: ["Over 3.5", "Under 3.5", "Over 4.5", "Under 4.5", "Over 5.5", "Under 5.5"] },
-  ];
 
   const MAX_VALORES = 6;
 
@@ -93,14 +105,14 @@ LIGA: ${f.fixture?.liga} (${f.fixture?.pais}) | FECHA: ${f.fixture?.fecha}
 TABLA: ${f.tabla || "N/D"} | Stats de equipo: ${f.stats_periodo || "temporada completa"}
 
 FORMA Y ESTADISTICAS — ${f.fixture?.local?.nombre?.toUpperCase()} (LOCAL):
-${formatStats(f.stats_local, f.posicion_local)}
+${formatStats(f.stats_local, f.posicion_local, formatSplit(f.stats_local?.casa, "En casa:"))}
 
 FORMA Y ESTADISTICAS — ${f.fixture?.visitante?.nombre?.toUpperCase()} (VISITANTE):
-${formatStats(f.stats_visitante, f.posicion_visitante)}
+${formatStats(f.stats_visitante, f.posicion_visitante, formatSplit(f.stats_visitante?.fuera, "De visita:"))}
 
 ${tituloCuotas}
-${bloqueCuotas}
-${bloqueAltitud(f.altitud)}${bloqueArbitro(f.arbitro)}
+${bloqueCuotas}${bloqueSharp(f.linea_sharp)}
+${bloqueAltitud(f.altitud)}${bloqueArbitro(f.arbitro)}${bloqueDescanso(f.descanso)}
 BAJAS ${f.fixture?.local?.nombre?.toUpperCase()}:
 ${formatLesionados(f.lesionados_local)}
 
@@ -109,6 +121,43 @@ ${formatLesionados(f.lesionados_visitante)}
 
 CONTEXTO: ${f.fixture?.estadio || "N/D"}, ${f.fixture?.ciudad || "N/D"}
 FUENTE: API-Football (datos oficiales en tiempo real)`;
+};
+
+// Bloque de descanso (receta 6): solo con datos medidos — sin fechas, la
+// instruccion manda puntuar neutro y no inventar. Compacto: una linea de
+// datos + una de instruccion, en la zona alta protegida del recorte.
+const bloqueDescanso = (d) => {
+  if (!d || (!d.local && !d.visitante)) return "";
+  const lado = (x, nombre) =>
+    x ? `${nombre} ${x.dias} dias sin jugar${x.jugo_copa_semana ? ", jugo copa entre semana" : ""}` : `${nombre} sin datos`;
+  return `
+DESCANSO: ${lado(d.local, "Local")}; ${lado(d.visitante, "Visitante")}.
+Instruccion de descanso: el factor cansancio se deriva de ESTOS numeros — menos de 3 dias o copa entre semana = fatiga real; sin datos, puntua neutro y no inventes.`;
+};
+
+// Vara sharp (receta 6): la linea de Pinnacle como calibre de la
+// probabilidad del mercado. COMPACTA a proposito — 1X2, goles y handicap
+// con hasta 3 lineas cada uno: es calibre global, no las 8 parrillas.
+const MERCADOS_SHARP_PROMPT = new Set(["Match Winner", "Goals Over/Under", "Asian Handicap"]);
+const bloqueSharp = (ls) => {
+  if (!ls?.length) return "";
+  // Mismas lineas que interesan en MERCADOS_CLAVE, no las 3 primeras del
+  // orden arbitrario de Pinnacle (que en goles puede ser Over 0.5/1.5 y
+  // dejar fuera la 2.5 util); si ninguna casa, fallback a las primeras —
+  // el mismo criterio del bloque de cuotas.
+  const lineasUtiles = new Map(MERCADOS_CLAVE.flatMap((m) => m.nombres.map((n) => [n, m.lineas])));
+  const partes = ls
+    .filter((m) => MERCADOS_SHARP_PROMPT.has(m.mercado))
+    .map((m) => {
+      const utiles = lineasUtiles.get(m.mercado) || [];
+      const casan = m.valores.filter((v) => utiles.includes(v.value));
+      const vals = (casan.length ? casan : m.valores).slice(0, 3);
+      return `${m.mercado}: ${vals.map((v) => `${v.value}=${v.odd}`).join(" ")}`;
+    });
+  if (!partes.length) return "";
+  return `
+Referencia mercado sharp (Pinnacle): ${partes.join(" | ")}
+Instruccion sharp: esa linea es la vara de la probabilidad del mercado (precio con margen minimo); el EV se calcula SIEMPRE contra la cuota ejecutable de Bet365/Betano de arriba, que es donde se apuesta.`;
 };
 
 // Bloque de arbitro del prompt (receta 5): solo con ficha MEDIDA de
@@ -127,9 +176,10 @@ Instruccion de arbitro: usa este dato SOLO para mercados de tarjetas, y recomien
 // partido — sin dato, ni una palabra, que el modelo no improvise. El
 // delta se firma (sube/baja) porque un visitante de altura que BAJA es
 // el caso debil, no el fuerte. Va ANTES de las bajas a proposito: el
-// recorte de 2500 del mensaje come por la cola, y un numero de altitud
-// sin su regla anti-doble-conteo (o pintado en cabecera sin haber
-// llegado al modelo) es peor que perder lineas de bajas.
+// recorte del mensaje (ver contrato en construirMensajeUsuario) come por
+// la cola, y un numero de altitud sin su regla anti-doble-conteo (o
+// pintado en cabecera sin haber llegado al modelo) es peor que perder
+// lineas de bajas.
 const bloqueAltitud = (a) => {
   if (a?.partido_m == null) return "";
   const delta = a.visitante_origen_m != null ? a.partido_m - a.visitante_origen_m : null;
@@ -148,13 +198,18 @@ export const searchDataSinDatos = (local, visitante) =>
 Partido no encontrado en API-Football para esa fecha. Analiza basandote en tu conocimiento del historial,
 forma reciente, estadísticas y contexto de ambos equipos. Usa cuotas estimadas realistas.`;
 
-// Mensaje de usuario para Claude. El slice(2500) es parte del contrato:
-// medido para que quepan las cuotas y las bajas sin desbordar el prompt.
+// Mensaje de usuario para Claude. El slice es parte del contrato y se
+// RE-MIDE con cada receta: la zona alta protegida (cabecera, stats con
+// splits, cuotas + vara sharp, altitud, arbitro y descanso) termina en
+// ~3080 en el peor caso medido (receta 6, 14-sep); 3300 le da margen y
+// el recorte sigue comiendo SOLO cola de bajas/contexto — jamas un
+// bloque medido. (Era 2500 hasta receta 5; +200 tokens de entrada,
+// irrelevante frente a los 4000 de salida.)
 export const construirMensajeUsuario = (local, visitante, searchData) =>
   `Partido: ${local} vs ${visitante} | Fecha: ${"Próximos días"}
 
 DATOS REALES DE API-FOOTBALL:
-${searchData.slice(0, 2500)}
+${searchData.slice(0, 3300)}
 
 FORMATO: responde SOLO con ---JSON_START--- {json} ---JSON_END---. Sin texto extra. Analiza 9 mercados. Cuota minima #1: 1.40.`;
 
@@ -268,8 +323,9 @@ export const normalizarAnalisis = (parsed) => {
 // Version del recetario (roadmap 1d): sube cuando cambia la receta del
 // JSON. Historia: 2 = tabla_cabecera (3-sep), 3 = altitud (5-sep),
 // 4 = ranking determinista de mercados (6-sep), 5 = ficha del arbitro
-// (13-sep). Los analisis viejos conservan la suya y no se migran.
-export const RECETA_VERSION = 5;
+// (13-sep), 6 = descanso medido + splits + vara sharp + anti-anclaje
+// (14-sep). Los analisis viejos conservan la suya y no se migran.
+export const RECETA_VERSION = 6;
 
 // ── Orden determinista de mercados (receta 4) ─────────────────────────
 // La IA rellena ev, ranking y top_apuesta como tres verdades sueltas y a

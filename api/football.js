@@ -1,5 +1,5 @@
 import { exigirSesion } from "./_auth.js";
-import { normalizarArbitro } from "./_analysis.js";
+import { normalizarArbitro, NOMBRES_MERCADOS_CLAVE } from "./_analysis.js";
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -543,11 +543,16 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
 
     await dormir(250);
 
-    // Tabla de posiciones
-    const standingsData = await pedirOpcional(
-      `/standings?league=${leagueId}&season=${season}`,
-      "Tabla de posiciones"
-    );
+    // Segunda tanda (misma regla de 4): tabla de posiciones + ultimos
+    // partidos de cada equipo (receta 6: el descanso MEDIDO — fecha del
+    // ultimo jugado y copa entre semana — sale de aqui, 1 peticion por
+    // equipo; last=3 devuelve los ultimos finalizados con su liga).
+    const [standingsData, ultimosHomeData, ultimosAwayData] =
+      await Promise.all([
+        pedirOpcional(`/standings?league=${leagueId}&season=${season}`, "Tabla de posiciones"),
+        pedirOpcional(`/fixtures?team=${homeTeamId}&last=3`, "Ultimos partidos del local"),
+        pedirOpcional(`/fixtures?team=${awayTeamId}&last=3`, "Ultimos partidos del visitante"),
+      ]);
 
     // ── 4. Procesar lesionados ────────────────────────────────────────
     // La duplicacion viene de origen: /injuries?fixture= devuelve CADA fila
@@ -695,6 +700,26 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
       }),
     }));
 
+    // ── 5b. Linea sharp (receta 6): Pinnacle desde la MISMA respuesta ─
+    // de /odds ya pagada — cero peticiones extra. Es VARA de probabilidad
+    // (precio con poco margen), jamas ejecutable: las cuotas de arriba
+    // siguen siendo Bet365/Betano. null si Pinnacle no cubre el partido o
+    // ningun mercado clave — cobertura por medir, silencio honesto.
+    const PINNACLE_ID = 4;
+    const pinnacle = librosPorId.get(PINNACLE_ID);
+    const sharpCrudo = pinnacle
+      ? (pinnacle.bets || [])
+          .filter((b) => b?.name && NOMBRES_MERCADOS_CLAVE.has(b.name))
+          .map((b) => ({
+            mercado: b.name,
+            valores: (b.values || [])
+              .filter((v) => v?.value != null && cuotaValida(parseFloat(v.odd)))
+              .map((v) => ({ value: v.value, odd: v.odd })),
+          }))
+          .filter((b) => b.valores.length)
+      : null;
+    const linea_sharp = sharpCrudo && sharpCrudo.length ? sharpCrudo : null;
+
     // ── 6. Procesar estadísticas ──────────────────────────────────────
     const sh = statsHomeData?.response || null;
     const sv = statsAwayData?.response || null;
@@ -710,6 +735,25 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
         goles_contra: s.goals?.against?.total?.total,
         promedio_goles_favor: s.goals?.for?.average?.total,
         promedio_goles_contra: s.goals?.against?.average?.total,
+        // Desglose local/visitante (receta 6): la MISMA respuesta ya lo
+        // traia y se descartaba. El recetario pinta casa para el local y
+        // fuera para el visitante.
+        casa: {
+          jugados: s.fixtures?.played?.home,
+          ganados: s.fixtures?.wins?.home,
+          empatados: s.fixtures?.draws?.home,
+          perdidos: s.fixtures?.loses?.home,
+          goles_favor: s.goals?.for?.total?.home,
+          goles_contra: s.goals?.against?.total?.home,
+        },
+        fuera: {
+          jugados: s.fixtures?.played?.away,
+          ganados: s.fixtures?.wins?.away,
+          empatados: s.fixtures?.draws?.away,
+          perdidos: s.fixtures?.loses?.away,
+          goles_favor: s.goals?.for?.total?.away,
+          goles_contra: s.goals?.against?.total?.away,
+        },
         forma: s.form,
         mayor_racha_victorias: s.biggest?.streak?.wins,
         mayor_racha_derrotas: s.biggest?.streak?.loses,
@@ -781,6 +825,48 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
       leerArbitro(match.fixture.referee),
     ]);
 
+    // ── 7d. Descanso medido (receta 6) ────────────────────────────────
+    // Dias sin jugar y copa entre semana, deterministas desde los ultimos
+    // partidos jugados. Los dias se miden contra el KICKOFF del fixture y
+    // NO contra "ahora": un analisis pre-cocinado horas antes por el cron
+    // debe decir lo mismo que uno generado al vuelo. null donde falten
+    // fechas — silencio honesto (y la instruccion del prompt manda
+    // puntuar neutro).
+    const kickoffMs = new Date(match.fixture.date).getTime();
+    // Solo partidos JUGADOS de verdad: `last=` puede colar pospuestos y
+    // cancelados con fecha pasada (PST conserva la fecha original), y un
+    // pospuesto contando como "jugado ayer" fabricaria fatiga falsa —
+    // mismo filtro FT/AET/PEN que el resto del repo.
+    const JUGADO_REAL = new Set(["FT", "AET", "PEN"]);
+    // Copa entre semana: cuando el fixture analizado ES una continental
+    // (Libertadores 13 / Sudamericana 11), el partido de LIGA del finde
+    // NO es "copa" — sin esta guarda, el 100% de los analisis de copa
+    // marcaria fatiga falsa a ambos equipos (liga domingo → copa
+    // miercoles es el calendario NORMAL de la competicion).
+    const CONTINENTALES = new Set([13, 11]);
+    const descansoDe = (ultimos) => {
+      if (!ultimos || !Number.isFinite(kickoffMs)) return null;
+      const jugados = (ultimos.response || [])
+        .filter((f) => JUGADO_REAL.has(f.fixture?.status?.short))
+        .map((f) => ({ t: new Date(f.fixture?.date).getTime(), ligaId: f.league?.id }))
+        .filter((x) => Number.isFinite(x.t) && x.t < kickoffMs)
+        .sort((a, b) => b.t - a.t);
+      if (!jugados.length) return null;
+      return {
+        dias: Math.floor((kickoffMs - jugados[0].t) / 86400000),
+        jugo_copa_semana: jugados.some(
+          (x) =>
+            kickoffMs - x.t <= 4 * 86400000 &&
+            x.ligaId !== leagueId &&
+            (CONTINENTALES.has(x.ligaId) || !CONTINENTALES.has(leagueId))
+        ),
+      };
+    };
+    const descanso = {
+      local: descansoDe(ultimosHomeData),
+      visitante: descansoDe(ultimosAwayData),
+    };
+
     return respuesta(200, {
       encontrado: true,
       fixture: {
@@ -815,6 +901,8 @@ export async function obtenerDatosPartido({ local, visitante, fixture_id } = {})
       stats_periodo: statsPeriodo,
       altitud,
       arbitro,
+      descanso,
+      linea_sharp,
       posicion_local: posLocal
         ? { pos: posLocal.rank, pts: posLocal.points, forma: posLocal.form, grupo: posLocal.grupo }
         : null,
