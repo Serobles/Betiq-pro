@@ -412,6 +412,11 @@ const PROGRAMADO = new Set(["NS", "TBD"]);
 const SIN_JUGARSE = { PST: "Aplazado", CANC: "Cancelado", AWD: "Perdida tecnica" };
 
 const VENTANA_MS = 24 * 60 * 60 * 1000;
+// Un partido dura ~2h con descuento: un NS con kickoff hace mas de esto
+// ya no esta "empezado" — el proveedor se durmio (medido 14-sep: 3
+// partidos de Peru/Venezuela que jamas se actualizaron, uno con pinta de
+// fixture duplicado en la fuente).
+const HORAS_PARTIDO_TERMINADO = 3;
 const BLOQUEADO_TITULO = "Disponible 24 horas antes";
 const BLOQUEADO_TEXTO =
   "Nuestra IA analiza cada partido con toda la informacion disponible de ambos equipos, verificando y explorando las mejores cuotas posibles para entregarte el pronostico mas profesional.";
@@ -462,7 +467,10 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
     // Se evalua AL RENDER con la hora actual (como estaBloqueado): la
     // lista se cachea 3 min y no debe congelar el veredicto.
     if (p.timestamp * 1000 <= Date.now()) {
-      derecha = <span style={chipS}>Empezado</span>;
+      // "Empezado" envejece a "Sin resultado" pasadas 3h del kickoff:
+      // mismo chip, mismo estilo, evaluado al render como todo el bloque.
+      const horas = (Date.now() - p.timestamp * 1000) / 3600000;
+      derecha = <span style={chipS}>{horas > HORAS_PARTIDO_TERMINADO ? "Sin resultado" : "Empezado"}</span>;
     } else if (estaBloqueado(p)) {
       // Bloqueado: solo el titulo. La explicacion va una vez al pie de
       // la seccion, no repetida en cada tarjeta.
