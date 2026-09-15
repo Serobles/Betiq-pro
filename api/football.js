@@ -1,5 +1,5 @@
 import { exigirSesion } from "./_auth.js";
-import { normalizarArbitro, NOMBRES_MERCADOS_CLAVE } from "./_analysis.js";
+import { normalizarArbitro, agregarFichasArbitro, NOMBRES_MERCADOS_CLAVE } from "./_analysis.js";
 
 const dormir = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -73,15 +73,16 @@ const leerAltitudes = async (localTeamId, visitanteTeamId, venuePartidoId) => {
   }
 };
 
-// ── Ficha del arbitro (Recetario v2c, receta 5) ───────────────────────
-// Si el fixture trae referee, se busca su historial en arbitro_partidos
-// (filas crudas: los promedios se calculan AQUI, al leer). Resolucion en
-// dos pasos: (a) clave exacta; (b) si el nombre viene abreviado y no hubo
-// match, cruce inicial+apellido contra las claves existentes SOLO con
-// candidato UNICO — 0 o 2+ candidatos = sin ficha, jamas se adivina.
-// REGLA DURA (patron altitud): cualquier error → null, la ficha jamas
-// rompe ni retrasa un analisis (timeout 3s por consulta).
-const MUESTRA_MINIMA_ARBITRO = 5; // menos partidos medidos = anecdota, no promedio
+// ── Ficha del arbitro (receta 5; agregacion de familia en receta 7) ───
+// Si el fixture trae referee, UNA consulta like anclada inicial*apellido
+// trae la FAMILIA entera de formas del nombre (el entrante, sus hermanas
+// abreviada↔completa y los posibles ambiguos) y agregarFichasArbitro
+// (recetario, pura) decide con la regla del candidato unico: la API
+// parte a la misma persona en varias fichas segun el literal de cada
+// fixture, y la agregacion vive en la LECTURA — la tabla queda cruda.
+// Nombres de un solo token: consulta exacta, sin familia. REGLA DURA
+// (patron altitud): cualquier error → null, la ficha jamas rompe ni
+// retrasa un analisis (timeout 3s por consulta).
 const leerArbitro = async (refereeCrudo) => {
   const n = normalizarArbitro(refereeCrudo);
   if (!n) return null;
@@ -101,41 +102,20 @@ const leerArbitro = async (refereeCrudo) => {
 
   try {
     const campos = "select=arbitro_clave,arbitro_display,amarillas,rojas";
-    // (a) clave exacta
-    let filas = await consulta(`arbitro_partidos?${campos}&arbitro_clave=eq.${encodeURIComponent(n.clave)}`);
-
-    // (b) cruce del abreviado: "g pereira" → inicial "g" + apellido
-    // "pereira", like anclado "g*pereira". Si las filas que casan
-    // pertenecen a MAS de una clave distinta, no hay ficha.
-    if (!filas.length && n.esAbreviado) {
-      const partes = n.clave.split(" ");
-      const inicial = partes[0].length === 1 ? partes[0] : null;
-      const apellido = partes[partes.length - 1].length > 1 ? partes[partes.length - 1] : null;
-      if (!inicial || !apellido) return null;
-      const candidatas = await consulta(
-        `arbitro_partidos?${campos}&arbitro_clave=like.${encodeURIComponent(`${inicial}*${apellido}`)}`
-      );
-      const claves = new Set(candidatas.map((x) => x.arbitro_clave));
-      if (claves.size !== 1) return null;
-      filas = candidatas;
-    }
-
-    // Promedios sobre filas CON dato de tarjetas (NULL = stats no
-    // disponibles: fuera del numerador y del denominador).
-    const medidos = filas.filter((x) => x.amarillas != null);
-    if (medidos.length < MUESTRA_MINIMA_ARBITRO) return null;
-    const amarillas = medidos.reduce((a, x) => a + x.amarillas, 0);
-    const rojas = medidos.reduce((a, x) => a + (x.rojas ?? 0), 0);
-    // El display mas largo suele ser la forma mas completa del nombre
-    // (util cuando el fixture vino abreviado y la tabla tiene el completo).
-    const display = filas.reduce((d, x) => ((x.arbitro_display || "").length > d.length ? x.arbitro_display : d), n.display);
-
-    return {
-      display,
-      partidos: medidos.length,
-      amarillas_prom: Number((amarillas / medidos.length).toFixed(1)),
-      rojas_total: rojas,
-    };
+    const partes = n.clave.split(" ");
+    const inicial = partes[0]?.[0];
+    const apellido =
+      partes.length > 1 && partes[partes.length - 1].length > 1
+        ? partes[partes.length - 1]
+        : null;
+    const filas = apellido
+      ? await consulta(
+          `arbitro_partidos?${campos}&arbitro_clave=like.${encodeURIComponent(`${inicial}*${apellido}`)}`
+        )
+      : await consulta(
+          `arbitro_partidos?${campos}&arbitro_clave=eq.${encodeURIComponent(n.clave)}`
+        );
+    return agregarFichasArbitro(n, filas);
   } catch {
     return null;
   }

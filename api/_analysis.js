@@ -324,8 +324,9 @@ export const normalizarAnalisis = (parsed) => {
 // JSON. Historia: 2 = tabla_cabecera (3-sep), 3 = altitud (5-sep),
 // 4 = ranking determinista de mercados (6-sep), 5 = ficha del arbitro
 // (13-sep), 6 = descanso medido + splits + vara sharp + anti-anclaje
-// (14-sep). Los analisis viejos conservan la suya y no se migran.
-export const RECETA_VERSION = 6;
+// (14-sep), 7 = fecha determinista + agregacion de fichas de arbitro
+// (15-sep). Los analisis viejos conservan la suya y no se migran.
+export const RECETA_VERSION = 7;
 
 // ── Orden determinista de mercados (receta 4) ─────────────────────────
 // La IA rellena ev, ranking y top_apuesta como tres verdades sueltas y a
@@ -413,6 +414,20 @@ export const ordenarMercados = (analisis) => {
 // receta (RECETA_VERSION) va SIEMPRE, con o sin tabla.
 export const adjuntarTabla = (analisis, f) => {
   analisis.receta = RECETA_VERSION;
+  // Fecha de calculadora (receta 7): la fecha REAL del fixture pisa la
+  // transcripcion de la IA — el 15-sep un analisis salio con "2025-09-15"
+  // en la cabecera (año bailado por el modelo). Solo con payload real;
+  // en el camino sin datos se respeta lo que haya. Nota conocida: es la
+  // fecha de calendario UTC (el payload viene sin timezone) — un kickoff
+  // nocturno de America puede estampar el dia siguiente al que agrupa el
+  // calendario local; si algun dia molesta, la cura va en el payload
+  // (pedir el fixture con timezone), no aqui.
+  const fechaReal = f?.fixture?.fecha;
+  if (fechaReal) {
+    if (!analisis.partido) analisis.partido = {};
+    delete analisis.partido.fecha;
+    analisis.partido.fecha = String(fechaReal).slice(0, 10);
+  }
   // Defensa: si el modelo llegara a inventar una tabla_cabecera propia,
   // aqui muere — la unica que existe es la determinista de abajo.
   delete analisis.tabla_cabecera;
@@ -471,6 +486,52 @@ export const adjuntarArbitro = (analisis, f) => {
     rojas_total: a.rojas_total,
   };
   return analisis;
+};
+
+// ── Agregacion de fichas de arbitro (receta 7) ────────────────────────
+// La API parte a una misma persona en varias fichas ("A. Herrera" 28
+// filas + "Alexis Herrera" 1 fila) porque el literal cambia de fixture a
+// fixture. Esta funcion PURA agrega en la LECTURA — la tabla queda cruda
+// siempre — bajo la regla del candidato unico: la familia (mismo
+// inicial+apellido) se suma solo si contiene A LO SUMO una forma
+// COMPLETA distinta; con dos nombres completos posibles (dos personas),
+// solo el match exacto, sin puente. filas = las candidatas que trajo la
+// consulta like inicial*apellido de leerArbitro (football.js).
+const MUESTRA_MINIMA_ARBITRO = 5; // menos partidos medidos = anecdota, no promedio
+export const agregarFichasArbitro = (n, filas) => {
+  if (!n || !Array.isArray(filas) || !filas.length) return null;
+  // "Completa" = el PRIMER token es un nombre real, no una inicial. Una
+  // inicial intermedia no resta identidad ("cesar a ramos" es una
+  // persona completa y distinguible de "carlos ramos"); la inicial al
+  // frente si ("a herrera" puede ser cualquier A. Herrera).
+  const esCompleta = (clave) => String(clave).split(" ")[0].length > 1;
+  const claves = [...new Set(filas.map((x) => x.arbitro_clave).filter(Boolean))];
+  // Personas candidatas = formas completas de la tabla MAS el propio
+  // entrante si es completo: un debutante de nombre completo frente a
+  // OTRA completa distinta son dos personas — sin contarlo, el
+  // debutante heredaria la ficha ajena bajo su propio nombre.
+  const personas = new Set(claves.filter(esCompleta));
+  if (esCompleta(n.clave)) personas.add(n.clave);
+  const usables = personas.size > 1
+    ? filas.filter((x) => x.arbitro_clave === n.clave)
+    : filas;
+  // Promedios sobre filas CON dato de tarjetas (NULL = stats no
+  // disponibles: fuera del numerador y del denominador).
+  const medidos = usables.filter((x) => x.amarillas != null);
+  if (medidos.length < MUESTRA_MINIMA_ARBITRO) return null;
+  const amarillas = medidos.reduce((a, x) => a + x.amarillas, 0);
+  const rojas = medidos.reduce((a, x) => a + (x.rojas ?? 0), 0);
+  // El display mas largo de la familia usada = la forma mas completa.
+  const display = usables.reduce(
+    (d, x) => ((x.arbitro_display || "").length > d.length ? x.arbitro_display : d),
+    n.display
+  );
+  return {
+    display,
+    partidos: medidos.length,
+    amarillas_prom: Number((amarillas / medidos.length).toFixed(1)),
+    rojas_total: rojas,
+  };
 };
 
 // ── Normalizador de arbitros (Recetario v2c, pieza 1) ─────────────────
