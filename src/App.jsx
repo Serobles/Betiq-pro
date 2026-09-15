@@ -38,6 +38,18 @@ const C = {
   dim:      "#4a7090",
 };
 
+// ── Autopromo (una sola fuente de verdad) ─────────────────────────────
+// Se pinta en la columna derecha del calendario (solo desktop).
+// MIEMBROS_CANAL: la linea "+X miembros" queda preparada pero oculta
+// mientras sea null; se rellena a mano cuando haya numero que presumir.
+const TELEGRAM_URL = "https://t.me/+nWUwBphiUt5iMjhl";
+const HITOS = [
+  "17 ligas cubiertas",
+  "Análisis con IA 24h antes de cada partido",
+  "Cuotas reales de Bet365 y Betano",
+];
+const MIEMBROS_CANAL = null;
+
 // El icono se elige por el TIPO de mercado, nunca por la linea numerica.
 // La IA genera el nombre con la linea real del partido ("Corners Over 8.5",
 // "Goles Over 2.5"), asi que una tabla con la linea fija dentro de la clave
@@ -512,7 +524,7 @@ const PartidoFila = ({ p, onAnalizar, analizando }) => {
   );
 };
 
-const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll, onObjetivoCumplido, onLigasPorDia }) => {
+const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll, onObjetivoCumplido, onLigasPorDia, onListo }) => {
   const [dias, setDias] = useState(null);
   // Ligas que no respondieron. Sin esto desapareceran de la lista en silencio
   // y pareceria que ese dia no tienen partidos.
@@ -544,6 +556,11 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
           // Copia ligera para el padre (menu ☰): nombres de liga por dia.
           // Sobrevive al desmontaje de este componente (historial, analisis).
           onLigasPorDia?.((d.dias || []).map((x) => x.ligas.map((l) => l.liga)));
+          // Los railes de escritorio solo se pintan con ESTE montaje ya
+          // servido: sin la senal, al volver de otra vista con el fetch en
+          // vuelo o caido pintarian la copia del montaje anterior — rancia,
+          // desbordada de un rail bajito y con botones sin ancla.
+          onListo?.(true);
         }
       } catch {
         if (vivo) setError("No se pudo cargar el calendario.");
@@ -551,7 +568,7 @@ const Calendario = ({ onAnalizar, analizandoId, diaSel, onDiaSel, objetivoScroll
         if (vivo) setCargando(false);
       }
     })();
-    return () => { vivo = false; };
+    return () => { vivo = false; onListo?.(false); };
   }, []);
 
   // El dia llega como "2026-08-22". Se formatea anclado a mediodia UTC para
@@ -1283,6 +1300,11 @@ export default function BetFutProV3() {
   // al cargar. Viven aqui para que el menu ☰ los tenga aunque el calendario
   // este desmontado (historial, analisis).
   const [ligasPorDia, setLigasPorDia] = useState([]);
+  // true solo mientras el montaje ACTUAL de Calendario tiene dias servidos
+  // (lo sube onListo). Compuerta de los railes laterales: a diferencia de
+  // ligasPorDia (que sobrevive a los desmontajes para el menu ☰), esto se
+  // apaga al desmontar y con el fetch en vuelo o caido.
+  const [calListo, setCalListo] = useState(false);
   const [menuLigas, setMenuLigas] = useState(false);
   // Menu de usuario del avatar. mousedown/touchstart y no click para el
   // cierre por fuera: con click, el mismo clic que abre tambien cierra.
@@ -1954,18 +1976,198 @@ export default function BetFutProV3() {
           <>
             {bloqueEstado}
 
-            <Calendario
-              onAnalizar={(p, ligas) => {
-                setLigasDelDia(ligas || []);
-                analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id, timestamp: p.timestamp });
-              }}
-              onLigasPorDia={setLigasPorDia}
-              analizandoId={analizandoId}
-              diaSel={diaSel}
-              onDiaSel={setDiaSel}
-              objetivoScroll={objetivoScroll}
-              onObjetivoCumplido={() => setObjetivoScroll(null)}
-            />
+            {/* 3 COLUMNAS DE ESCRITORIO ─────────────────────────────
+                Los paneles laterales viven en railes ABSOLUTOS colgados
+                de este contenedor relativo: fuera del flujo, jamas
+                empujan ni encogen la columna central, que conserva su
+                920 centrado en TODOS los anchos. El sticky de cada
+                panel viaja dentro de su rail (alto completo del
+                calendario MAS la seccion de planes, que vive dentro del
+                contenedor a proposito) y ancla contra el viewport porque
+                ningun ancestro crea scroll container (el root usa
+                overflowX clip, no hidden — no anadir overflow aqui). El
+                ancho de la promo es fluido: min(280px, hueco real del
+                lateral); el -480px deja holgura para la scrollbar (50vw
+                la incluye). Los railes solo se pintan con el calendario
+                del montaje actual servido y con ligas en el dia visible
+                (calListo — un rail bajito con la tarjeta en error o un
+                dia vacio dejaria la pila colgando por el canalon), y sin
+                media query ni existen: <1240px identico a lo de siempre. */}
+            <style>{`
+              .cal-col-ligas, .cal-col-promo { display: none; }
+              @media (min-width: 1240px) { .cal-col-promo { display: block; } }
+              @media (min-width: 1520px) { .cal-col-ligas { display: block; } }
+            `}</style>
+            <div style={{ position: "relative" }}>
+              {calListo && (ligasPorDia[diaSel] || []).length > 0 && (
+                <aside
+                  className="cal-col-ligas"
+                  style={{ position: "absolute", top: 0, bottom: 0, right: "calc(100% + 16px)", width: 224 }}
+                >
+                  {/* Mismo patron que el panel de la vista de analisis,
+                      con los datos que el calendario ya tiene
+                      (ligasPorDia[diaSel]) y el mismo salto: irALiga
+                      apunta a las anclas liga-<slug> existentes y el
+                      scrollMarginTop de la seccion compensa la barra. */}
+                  <div style={{ position: "sticky", top: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px" }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.dim, letterSpacing: ".06em", marginBottom: 10 }}>
+                      LIGAS DEL DIA
+                    </div>
+                    {(ligasPorDia[diaSel] || []).map((nombre) => {
+                      const sep = nombre.indexOf(" · ");
+                      const pais = sep >= 0 ? nombre.slice(0, sep) : null;
+                      const liga = sep >= 0 ? nombre.slice(sep + 3) : nombre;
+                      return (
+                        <button
+                          key={nombre}
+                          onClick={() => irALiga(nombre)}
+                          style={{
+                            display: "grid", gridTemplateColumns: "66px 1fr",
+                            columnGap: 8, alignItems: "baseline",
+                            width: "100%", textAlign: "left",
+                            background: "transparent", border: "none", cursor: "pointer",
+                            fontSize: 12, fontWeight: 600,
+                            padding: "6px 4px", borderRadius: 6,
+                          }}
+                        >
+                          {pais ? (
+                            <>
+                              <span style={{ color: C.muted, whiteSpace: "nowrap" }}>{pais}</span>
+                              <span style={{ color: C.blue, whiteSpace: "nowrap" }}>{liga}</span>
+                            </>
+                          ) : (
+                            <span style={{ gridColumn: "1 / -1", color: C.blue, whiteSpace: "nowrap" }}>{liga}</span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </aside>
+              )}
+
+              {calListo && (ligasPorDia[diaSel] || []).length > 0 && (
+              <aside
+                className="cal-col-promo"
+                style={{ position: "absolute", top: 0, bottom: 0, left: "calc(100% + 16px)", width: "min(280px, calc(50vw - 480px))" }}
+              >
+                <div style={{ position: "sticky", top: 12, display: "flex", flexDirection: "column", gap: 10 }}>
+                  {/* CANAL */}
+                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 4 }}>Picks gratis cada día</div>
+                    <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 10 }}>
+                      Análisis seleccionados y picks con valor en nuestro canal.
+                    </div>
+                    <a
+                      href={TELEGRAM_URL}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        display: "block", textAlign: "center",
+                        background: "linear-gradient(135deg,#1565c0,#2196F3)",
+                        color: "#fff", fontWeight: 700, fontSize: 12,
+                        borderRadius: 8, padding: "9px 10px", textDecoration: "none",
+                      }}
+                    >
+                      Únete al canal →
+                    </a>
+                  </div>
+
+                  {/* HITOS */}
+                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px" }}>
+                    <div style={{ fontSize: 11, fontWeight: 800, color: C.dim, letterSpacing: ".06em", marginBottom: 8 }}>
+                      POR QUÉ BETFUT
+                    </div>
+                    {HITOS.map((h) => (
+                      <div key={h} style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 6, display: "flex", gap: 6 }}>
+                        <span style={{ color: C.green, flexShrink: 0 }}>✓</span>{h}
+                      </div>
+                    ))}
+                    {MIEMBROS_CANAL != null && (
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.text, marginTop: 4 }}>+{MIEMBROS_CANAL} miembros</div>
+                    )}
+                  </div>
+
+                  {/* PLANES — mismo gate !loading que la seccion #planes:
+                      si el ancla no esta montada (volver al calendario con
+                      un analisis en vuelo), la tarjeta que la publicita
+                      tampoco — jamas un boton mudo. */}
+                  {!loading && (
+                  <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px" }}>
+                    <div style={{ fontSize: 13, fontWeight: 800, color: C.text, marginBottom: 4 }}>Free · Premium · VIP</div>
+                    <div style={{ fontSize: 12, color: C.muted, lineHeight: 1.5, marginBottom: 10 }}>
+                      Más análisis diarios + el Manual del Método.
+                    </div>
+                    <button
+                      onClick={() => document.getElementById("planes")?.scrollIntoView({ block: "start" })}
+                      style={{
+                        display: "block", width: "100%", textAlign: "center",
+                        background: C.card2, color: C.text, border: `1px solid ${C.border}`,
+                        borderRadius: 8, padding: "8px 10px", fontWeight: 700, fontSize: 12, cursor: "pointer",
+                      }}
+                    >
+                      Ver planes
+                    </button>
+                  </div>
+                  )}
+
+                  {/* JUEGO RESPONSABLE — sobrio a proposito: fondo neutro,
+                      texto gris, sin verde de marca. */}
+                  <div style={{ background: C.card2, border: `1px solid ${C.border}`, borderRadius: 12, padding: "12px 14px" }}>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: C.dim, letterSpacing: ".06em", marginBottom: 6 }}>
+                      JUEGO RESPONSABLE
+                    </div>
+                    <div style={{ fontSize: 11, color: C.dim, lineHeight: 1.55 }}>
+                      +18 · Contenido informativo — no es asesoría financiera ni recomendación de inversión · Apuesta solo dinero que puedas permitirte perder · Sigue un método y respeta tus límites.
+                    </div>
+                  </div>
+                </div>
+              </aside>
+              )}
+
+              <Calendario
+                onAnalizar={(p, ligas) => {
+                  setLigasDelDia(ligas || []);
+                  analyze({ local: p.local, visitante: p.visitante, fixtureId: p.id, timestamp: p.timestamp });
+                }}
+                onLigasPorDia={setLigasPorDia}
+                onListo={setCalListo}
+                analizandoId={analizandoId}
+                diaSel={diaSel}
+                onDiaSel={setDiaSel}
+                objetivoScroll={objetivoScroll}
+                onObjetivoCumplido={() => setObjetivoScroll(null)}
+              />
+
+              {/* PLANES — dentro del contenedor relativo a proposito: los
+                  railes (top 0 / bottom 0) cubren tambien esta seccion y el
+                  sticky lateral viaja hasta el final. El id es el ancla del
+                  boton "Ver planes" de la promo; el scrollMarginTop solo da
+                  aire (aqui la barra del calendario ya no ancla: su tarjeta
+                  termino arriba). Mismo gate !loading de siempre. */}
+              {!loading && (
+                <div id="planes" style={{ marginTop: 32, scrollMarginTop: 12, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "20px" }}>
+                  <div style={{ textAlign: "center", marginBottom: 18 }}>
+                    <Badge color={C.accent} size="md">👑 PLANES DE ACCESO</Badge>
+                    <div style={{ fontWeight: 800, fontSize: 17, marginTop: 10 }}>Elige tu nivel</div>
+                  </div>
+                  {/* Grid responsive: 1 col en móvil, 3 en desktop */}
+                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, width: "100%", boxSizing: "border-box" }}>
+                    {[
+                      { n: "FREE", p: "$0/día", c: C.green, feats: ["1 Análisis de partido gratis diario", "1 Pronóstico gratis diario", "Manejo de Historial", "Balance de apuestas", "Excel Exportable"] },
+                      { n: "PREMIUM", p: "$4.99/día", c: C.accent, feats: ["3 Análisis de partidos diarios", "1 Pronóstico diario premium + 1 Pronóstico gratis diario", "Manejo de Historial", "Balance de apuestas", "Excel Exportable", "Acceso canal Telegram/WhatsApp privado", "Acceso al método ganador probado"], hi: true },
+                      { n: "VIP", p: "$39.99/mes", c: C.blue, feats: ["Análisis de partidos ilimitado", "Todos los pronósticos VIP, Premium y gratis", "Manejo de Historial", "Balance de apuestas", "Excel Exportable", "Acceso canal Telegram/WhatsApp privado", "Acceso al método ganador probado", "Acompañamiento en el método ganador", "Soporte personalizado"] },
+                    ].map(plan => (
+                      <div key={plan.n} style={{ background: C.card2, border: `1px solid ${plan.hi ? plan.c + "66" : C.border}`, borderRadius: 10, padding: "16px", boxSizing: "border-box", minWidth: 0 }}>
+                        <div style={{ fontSize: 12, fontWeight: 800, color: plan.c, marginBottom: 6 }}>{plan.n}</div>
+                        <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 12 }}>{plan.p}</div>
+                        {plan.feats.map(f => <div key={f} style={{ fontSize: 11, color: C.muted, marginBottom: 5, display: "flex", gap: 6 }}><span style={{ color: C.green, flexShrink: 0 }}>✓</span>{f}</div>)}
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ textAlign: "center", fontSize: 11, color: C.dim, marginTop: 14 }}>⚠️ Sugerencias basadas en análisis con IA. Juega responsablemente.</div>
+                </div>
+              )}
+            </div>
           </>
         )}
 
@@ -2382,32 +2584,13 @@ export default function BetFutProV3() {
           </>
         )}
 
-        {/* PLANES */}
-        {mainTab === "analizar" && !loading && (
-          <div style={{ marginTop: 32, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: "20px" }}>
-            <div style={{ textAlign: "center", marginBottom: 18 }}>
-              <Badge color={C.accent} size="md">👑 PLANES DE ACCESO</Badge>
-              <div style={{ fontWeight: 800, fontSize: 17, marginTop: 10 }}>Elige tu nivel</div>
-            </div>
-            {/* Grid responsive: 1 col en móvil, 3 en desktop */}
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 12, width: "100%", boxSizing: "border-box" }}>
-              {[
-                { n: "FREE", p: "$0/día", c: C.green, feats: ["1 Análisis de partido gratis diario", "1 Pronóstico gratis diario", "Manejo de Historial", "Balance de apuestas", "Excel Exportable"] },
-                { n: "PREMIUM", p: "$4.99/día", c: C.accent, feats: ["3 Análisis de partidos diarios", "1 Pronóstico diario premium + 1 Pronóstico gratis diario", "Manejo de Historial", "Balance de apuestas", "Excel Exportable", "Acceso canal Telegram/WhatsApp privado", "Acceso al método ganador probado"], hi: true },
-                { n: "VIP", p: "$39.99/mes", c: C.blue, feats: ["Análisis de partidos ilimitado", "Todos los pronósticos VIP, Premium y gratis", "Manejo de Historial", "Balance de apuestas", "Excel Exportable", "Acceso canal Telegram/WhatsApp privado", "Acceso al método ganador probado", "Acompañamiento en el método ganador", "Soporte personalizado"] },
-              ].map(plan => (
-                <div key={plan.n} style={{ background: C.card2, border: `1px solid ${plan.hi ? plan.c + "66" : C.border}`, borderRadius: 10, padding: "16px", boxSizing: "border-box", minWidth: 0 }}>
-                  <div style={{ fontSize: 12, fontWeight: 800, color: plan.c, marginBottom: 6 }}>{plan.n}</div>
-                  <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 12 }}>{plan.p}</div>
-                  {plan.feats.map(f => <div key={f} style={{ fontSize: 11, color: C.muted, marginBottom: 5, display: "flex", gap: 6 }}><span style={{ color: C.green, flexShrink: 0 }}>✓</span>{f}</div>)}
-                </div>
-              ))}
-            </div>
-            <div style={{ textAlign: "center", fontSize: 11, color: C.dim, marginTop: 14 }}>⚠️ Sugerencias basadas en análisis con IA. Juega responsablemente.</div>
-          </div>
-        )}
-
       </div>
+
+      {/* Pie global: una linea compacta en TODAS las vistas y tamanos
+          (el paddingBottom 60 del root le da el aire de abajo). */}
+      <footer style={{ textAlign: "center", fontSize: 11, color: C.dim, lineHeight: 1.6, borderTop: `1px solid ${C.border}`, padding: "18px 16px 0" }}>
+        BetFut IA · +18 · Juega con responsabilidad · Análisis informativos — no constituyen asesoría financiera
+      </footer>
     </div>
   );
 }
